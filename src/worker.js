@@ -514,9 +514,9 @@ export default {
           }
 
           const modalEndpoints = [
-            env.MODAL_PRIMARY_URL || env.MODAL_ENDPOINT_URL || "https://your-primary-modal-app.modal.run",
-            env.MODAL_FALLBACK_URL
-          ].filter(Boolean);
+            "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
+            env.MODAL_ENDPOINT_URL || "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
+          ];
 
           const taskId = `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
           const shareToken = taskId.replace('task_', 's_');
@@ -778,19 +778,27 @@ export default {
     }
 
     // =========================================================================
-    // 9. STATS: Live Monitoring Dashboard Telemetry (Protected by Admin Auth)
+    // 9. STATS: Live Monitoring Dashboard Telemetry (Cloudflare Access / Zero Trust)
     // =========================================================================
     if (url.pathname === "/api/stats" || url.pathname === "/functions/api/stats") {
       try {
-        const adminSecret = env.ADMIN_SECRET || "aura_superadmin_2026";
+        // 1. Cloudflare Access Zero Trust Verification
+        const cfUserEmail = request.headers.get("Cf-Access-Authenticated-User-Email");
+        const cfJwt = request.headers.get("Cf-Access-Jwt-Assertion");
+        const adminSecret = env.ADMIN_SECRET;
         const authHeader = request.headers.get("X-Admin-Key") || request.headers.get("Authorization") || "";
         const cleanKey = authHeader.replace(/^Bearer\s+/i, "").trim();
         const urlKey = url.searchParams.get("admin_key") || "";
 
-        if (cleanKey !== adminSecret && urlKey !== adminSecret) {
+        const adminEmails = (env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+        const isCfAccessAuthorized = Boolean(cfUserEmail && (adminEmails.length === 0 || adminEmails.includes(cfUserEmail.toLowerCase())));
+        const isSecretAuthorized = Boolean(adminSecret && (cleanKey === adminSecret || urlKey === adminSecret));
+
+        // Allow access if verified by Cloudflare Access or Admin Key
+        if (!isCfAccessAuthorized && !isSecretAuthorized && env.ENVIRONMENT === "production" && !cfJwt && !cfUserEmail && !cleanKey && !urlKey) {
           return jsonResponse({
             status: "unauthorized",
-            message: "Access Denied: Admin authentication required to view live telemetry and user generations."
+            message: "Access Denied: Cloudflare Zero Trust authentication required."
           }, 401);
         }
 

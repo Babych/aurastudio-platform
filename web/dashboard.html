@@ -169,34 +169,6 @@
         </div>
     </div>
 
-    <!-- Admin Authentication Passkey Modal -->
-    <div id="adminAuthModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
-        <div class="glass-card max-w-md w-full rounded-3xl p-8 space-y-6 relative border border-purple-500/50 shadow-2xl">
-            <div class="text-center space-y-2">
-                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
-                    <i data-lucide="shield-alert" class="w-8 h-8"></i>
-                </div>
-                <h3 class="text-2xl font-bold tracking-tight text-white">Admin Telemetry Access</h3>
-                <p class="text-xs text-gray-400">Цей дашборд містить конфіденційні метрики та історію генерацій. Введіть пароль адміністратора.</p>
-            </div>
-
-            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5">Ключ Адміністратора (Admin Key)</label>
-                    <input type="password" id="adminKeyInput" placeholder="••••••••••••" required class="w-full bg-gray-950/90 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition shadow-inner">
-                </div>
-                <p id="adminAuthError" class="text-xs text-red-400 hidden text-center font-medium">❌ Невірний ключ адміністратора. Спробуйте ще раз.</p>
-                <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl shadow-lg shadow-purple-600/30 transition flex items-center justify-center gap-2">
-                    <i data-lucide="unlock" class="w-4 h-4"></i>
-                    <span>Розблокувати Телеметрію</span>
-                </button>
-            </form>
-            <div class="text-center">
-                <a href="/" class="text-xs text-gray-500 hover:text-purple-400 transition">← Повернутися на головну сторінку</a>
-            </div>
-        </div>
-    </div>
-
     <!-- Image Preview Modal -->
     <div id="imageModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4" onclick="closeImageModal()">
         <div class="max-w-3xl w-full text-center space-y-3 relative" onclick="event.stopPropagation()">
@@ -208,44 +180,26 @@
         </div>
     </div>
 
+    <!-- Access Denied Card (If not authenticated via Cloudflare Access) -->
+    <div id="accessDeniedCard" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-card max-w-md w-full rounded-3xl p-8 space-y-6 text-center border border-purple-500/40 shadow-2xl">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
+                <i data-lucide="shield-alert" class="w-8 h-8"></i>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-2xl font-bold tracking-tight text-white">Cloudflare Access Required</h3>
+                <p class="text-xs text-gray-400 leading-relaxed">Ця сторінка захищена політикою **Cloudflare Zero Trust Access**. Доступ надається лише авторизованим адміністраторам.</p>
+            </div>
+            <div class="pt-2 space-y-3">
+                <a href="/" class="block w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-xl shadow-lg transition">
+                    ← Повернутися на головну
+                </a>
+            </div>
+        </div>
+    </div>
+
     <script>
         lucide.createIcons();
-
-        function getAdminKey() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const keyFromUrl = urlParams.get('admin_key') || urlParams.get('key');
-            if (keyFromUrl) {
-                localStorage.setItem('aurastudio_admin_key', keyFromUrl);
-                return keyFromUrl;
-            }
-            return localStorage.getItem('aurastudio_admin_key') || '';
-        }
-
-        function showAdminAuthModal() {
-            document.getElementById('adminAuthModal').classList.remove('hidden');
-            document.getElementById('adminAuthModal').classList.add('flex');
-            document.getElementById('adminKeyInput').focus();
-            lucide.createIcons();
-        }
-
-        function hideAdminAuthModal() {
-            document.getElementById('adminAuthModal').classList.add('hidden');
-            document.getElementById('adminAuthModal').classList.remove('flex');
-            document.getElementById('adminAuthError').classList.add('hidden');
-        }
-
-        function handleAdminLogin(e) {
-            e.preventDefault();
-            const key = document.getElementById('adminKeyInput').value.trim();
-            if (!key) return;
-            localStorage.setItem('aurastudio_admin_key', key);
-            fetchStats();
-        }
-
-        function lockDashboard() {
-            localStorage.removeItem('aurastudio_admin_key');
-            showAdminAuthModal();
-        }
 
         function openImageModal(src, caption) {
             if (!src || src === 'uploaded_image' || src === 'generated_image') return;
@@ -261,29 +215,24 @@
         }
 
         async function fetchStats() {
-            const adminKey = getAdminKey();
             try {
-                const headers = {};
-                if (adminKey) headers['X-Admin-Key'] = adminKey;
-
-                const res = await fetch('/api/stats', { headers });
+                const res = await fetch('/api/stats');
                 
                 if (res.status === 401 || res.status === 403) {
-                    showAdminAuthModal();
-                    if (adminKey) {
-                        document.getElementById('adminAuthError').classList.remove('hidden');
-                    }
+                    document.getElementById('accessDeniedCard').classList.remove('hidden');
+                    document.getElementById('accessDeniedCard').classList.add('flex');
                     return;
                 }
 
                 const data = await res.json();
                 if (data.status === 'unauthorized') {
-                    showAdminAuthModal();
-                    document.getElementById('adminAuthError').classList.remove('hidden');
+                    document.getElementById('accessDeniedCard').classList.remove('hidden');
+                    document.getElementById('accessDeniedCard').classList.add('flex');
                     return;
                 }
 
-                hideAdminAuthModal();
+                document.getElementById('accessDeniedCard').classList.add('hidden');
+                document.getElementById('accessDeniedCard').classList.remove('flex');
                 
                 document.getElementById('statUsers').innerText = data.total_users || 0;
                 document.getElementById('statGens').innerText = data.total_generations || 0;
