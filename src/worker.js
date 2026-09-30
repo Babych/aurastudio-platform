@@ -876,13 +876,49 @@ export default {
     }
 
     // =========================================================================
-    // 10. TELEGRAM WEBHOOK: @AuraStudioAiBot Deep-Link & Telegram Stars Handlers
+    // 10. TELEGRAM WEBHOOK: @AuraStudioAiBot Full Serverless Bot Handler
     // =========================================================================
     if (url.pathname === "/api/telegram-webhook" || url.pathname === "/functions/api/telegram-webhook") {
       try {
         const update = await request.json();
         const botToken = env.AURA_BOT_TOKEN || env.TELEGRAM_BOT_TOKEN;
         if (!botToken) throw new Error("Bot token secret not configured");
+
+        const sendTgMessage = async (chatId, text, extra = {}) => {
+          return fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown", ...extra })
+          });
+        };
+
+        const sendTgPhoto = async (chatId, photoUrlOrBase64, caption, extra = {}) => {
+          // If Base64, convert to FormData binary upload
+          if (photoUrlOrBase64.startsWith("data:") || !photoUrlOrBase64.startsWith("http")) {
+            const base64Data = photoUrlOrBase64.replace(/^data:image\/\w+;base64,/, "");
+            const binaryStr = atob(base64Data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            
+            const formData = new FormData();
+            formData.append("chat_id", chatId.toString());
+            formData.append("caption", caption);
+            formData.append("parse_mode", "Markdown");
+            formData.append("photo", new Blob([bytes], { type: "image/png" }), "result.png");
+            if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
+
+            return fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+              method: "POST",
+              body: formData
+            });
+          }
+
+          return fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, photo: photoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
+          });
+        };
 
         // Handle Telegram Stars Pre-Checkout Query
         if (update.pre_checkout_query) {
@@ -897,12 +933,119 @@ export default {
           return jsonResponse({ ok: true });
         }
 
+        // Handle Callback Queries (Inline button clicks)
+        if (update.callback_query) {
+          const cb = update.callback_query;
+          const chatId = cb.message?.chat?.id;
+          const user = cb.from || {};
+          const userId = `tg_${user.id}`;
+          const data = cb.data || "";
+
+          await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ callback_query_id: cb.id })
+          });
+
+          // Handle Buy callback
+          if (data.startsWith("buy_")) {
+            const planTier = data.replace("buy_", "");
+            const starsPrices = { starter: { title: "AuraStudio Starter (50 Gens)", stars: 250 }, unlimited: { title: "AuraStudio Unlimited", stars: 500 } };
+            const selected = starsPrices[planTier] || starsPrices.starter;
+
+            const invoiceRes = await fetch(`https://api.telegram.org/bot${botToken}/createInvoiceLink`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: selected.title,
+                description: `Instant AI Photo Studio generation package on Nvidia A10G GPU.`,
+                payload: JSON.stringify({ user_id: userId, plan_tier: planTier }),
+                currency: "XTR",
+                prices: [{ label: selected.title, amount: selected.stars }]
+              })
+            });
+            const invData = await invoiceRes.json();
+            if (invData.ok && invData.result) {
+              await sendTgMessage(chatId, `⭐️ *Оплата підписки ${selected.title}*\n\nНатисніть посилання нижче для оплати через Telegram Stars:`, {
+                reply_markup: { inline_keyboard: [[{ text: `⭐️ Оплатити ${selected.stars} Stars`, url: invData.result }]] }
+              });
+            }
+            return jsonResponse({ ok: true });
+          }
+
+          // Handle Preset Generation from message photo
+          if (data.startsWith("preset_")) {
+            const presetKey = data.replace("preset_", "");
+            const presetPrompts = {
+              linkedin: "change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting",
+              old_money: "change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers",
+              blonde: "change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights",
+              bali: "change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting",
+              cyberpunk: "change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing reflections"
+            };
+
+            const prompt = presetPrompts[presetKey] || "enhance photo to studio magazine portrait";
+            
+            // Get original photo from replied message
+            const photos = cb.message?.photo;
+            if (photos && photos.length > 0) {
+              const bestPhoto = photos[photos.length - 1];
+              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${presetKey.toUpperCase()})...*\n\n_Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)_`);
+
+              ctx.waitUntil((async () => {
+                try {
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                  const fileData = await fileRes.json();
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+
+                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+                  const photoBuffer = await photoBlobRes.arrayBuffer();
+                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+
+                  // Call Modal GPU
+                  const modalEndpoint = "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run";
+                  const modalResp = await fetch(modalEndpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      image_base64: photoBase64,
+                      prompt: prompt,
+                      negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+                      steps: 22,
+                      cfg: 1.95,
+                      seed: 888424
+                    })
+                  });
+
+                  const mData = await modalResp.json();
+                  if (mData.status === "success" && mData.result_base64) {
+                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${presetKey.toUpperCase()}*\nДвигун: Qwen 2.5 DiT 20B`, {
+                      reply_markup: {
+                        inline_keyboard: [
+                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
+                        ]
+                      }
+                    });
+                  } else {
+                    await sendTgMessage(chatId, "⚠️ Не вдалося згенерувати фото. Спробуйте інше фото або стиль.");
+                  }
+                } catch(err) {
+                  console.error("TG generation error:", err);
+                  await sendTgMessage(chatId, "⚠️ Помилка генерації: " + err.message);
+                }
+              })());
+            }
+            return jsonResponse({ ok: true });
+          }
+        }
+
+        // Handle Messages
         if (update.message) {
           const chatId = update.message.chat.id;
           const user = update.message.from || {};
           const text = update.message.text || "";
+          const photos = update.message.photo;
 
-          // Auto-register telegram user into D1
           const userId = `tg_${user.id}`;
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || "Telegram User";
 
@@ -934,15 +1077,7 @@ export default {
               `).bind(userId, starsAmount, JSON.stringify(payment)).run();
             }
 
-            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: chatId,
-                text: `⭐️ *Дякуємо за оплату!*\n\nВаша підписка *${planTier.toUpperCase()}* успішно активована! Ви можете створювати студійні фото на сайті або прямо тут.`,
-                parse_mode: "Markdown"
-              })
-            });
+            await sendTgMessage(chatId, `⭐️ *Дякуємо за оплату!*\n\nВаша підписка *${planTier.toUpperCase()}* успішно активована! Ви можете створювати студійні фото на сайті або прямо тут.`);
             return jsonResponse({ ok: true });
           }
 
@@ -955,39 +1090,82 @@ export default {
                 user: { id: userId, username: user.username, name: userName, auth_provider: "telegram", free_generations_used: 0 }
               });
 
-              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  chat_id: chatId,
-                  text: `✅ *Вхід успішно підтверджено!*\n\nВи увійшли на веб-сайті AuraStudio.AI під акаунтом *${userName}*. Можете повертатися до браузера!`,
-                  parse_mode: "Markdown"
-                })
-              });
+              await sendTgMessage(chatId, `✅ *Вхід успішно підтверджено!*\n\nВи увійшли на веб-сайті AuraStudio.AI під акаунтом *${userName}*. Можете повертатися до браузера!`);
               return jsonResponse({ ok: true });
             }
           }
 
-          // Standard /start
-          if (text.startsWith("/start")) {
-            const welcomeText = "✨ *Welcome to AuraStudio AI!* ✨\n\n🎨 *Studio headshots, luxury outfits & photo magic in 30s!*\n\n• 📸 *LinkedIn Pro Headshot*\n• 👗 *Old Money Aesthetic*\n• 🌴 *Bali Sunset Travel*\n\n👇 *Open the web app or send a photo:*";
-            const webUrl = "https://aurastudio-ai.memory1024.workers.dev";
-            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: chatId,
-                text: welcomeText,
-                parse_mode: "Markdown",
+          // Handle Photo Upload in Telegram
+          if (photos && photos.length > 0) {
+            const caption = update.message.caption;
+            if (caption) {
+              // Directly generate with user caption
+              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${caption}"_...`);
+              // Async execution
+              ctx.waitUntil((async () => {
+                const bestPhoto = photos[photos.length - 1];
+                const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                const fileData = await fileRes.json();
+                const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+                const photoBuffer = await photoBlobRes.arrayBuffer();
+                const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+
+                const modalResp = await fetch("https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    image_base64: photoBase64,
+                    prompt: caption,
+                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+                    steps: 22,
+                    cfg: 1.95,
+                    seed: 888424
+                  })
+                });
+
+                const mData = await modalResp.json();
+                if (mData.status === "success" && mData.result_base64) {
+                  await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nОпис: _"${caption}"_`);
+                } else {
+                  await sendTgMessage(chatId, "⚠️ Не вдалося створити фото. Спробуйте інший промпт.");
+                }
+              })());
+            } else {
+              // Offer Preset Selection Buttons
+              await sendTgMessage(chatId, `📸 *Фото отримано!* Оберіть бажаний стиль для трансформації:`, {
                 reply_markup: {
                   inline_keyboard: [
-                    [{ text: "✨ Open AI Studio (Web App)", web_app: { url: webUrl } }],
-                    [{ text: "🌐 Open Website", url: webUrl }]
+                    [
+                      { text: "💼 LinkedIn Pro", callback_data: "preset_linkedin" },
+                      { text: "🍸 Old Money", callback_data: "preset_old_money" }
+                    ],
+                    [
+                      { text: "👱‍♀️ Blonde Restyle", callback_data: "preset_blonde" },
+                      { text: "🌴 Bali Sunset", callback_data: "preset_bali" }
+                    ],
+                    [
+                      { text: "🌆 Cyberpunk Noir", callback_data: "preset_cyberpunk" },
+                      { text: "⭐ Отримати Pro", callback_data: "buy_starter" }
+                    ]
                   ]
                 }
-              })
-            });
+              });
+            }
+            return jsonResponse({ ok: true });
           }
+
+          // Standard /start or greeting
+          const welcomeText = "✨ *Ласкаво просимо до AuraStudio AI!* ✨\n\n🎨 *Студійні портрети, ділові фото та стильні луки за 30 секунд!*\n\n• 📸 *LinkedIn Pro Headshot*\n• 👗 *Old Money Aesthetic*\n• 🌴 *Bali Sunset Travel*\n\n👇 *Надішліть фото сюди або відкрийте Web App:*";
+          const webUrl = "https://aurastudio-ai.memory1024.workers.dev";
+          await sendTgMessage(chatId, welcomeText, {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "✨ Відкрити AI Studio (Web App)", web_app: { url: webUrl } }],
+                [{ text: "🌐 Відкрити веб-сайт", url: webUrl }],
+                [{ text: "⭐ Купити підписку (Stars)", callback_data: "buy_starter" }]
+              ]
+            }
+          });
         }
         return jsonResponse({ ok: true });
       } catch (e) {
