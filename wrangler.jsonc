@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aurastudio-ai",
+  "main": "src/worker.js",
+  "compatibility_date": "2024-11-01",
+  "assets": {
+    "directory": "web",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "aurastudio-prod-db",
+      "database_id": "a9e333ed-e98d-4477-92ae-d3d65ecd5b4c"
+    }
+  ],
+  "vars": {
+    "MODAL_ENDPOINT_URL": "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
+    "ENVIRONMENT": "production",
+    "TELEGRAM_BOT_USERNAME": "AuraStudioAiBot",
+    "GOOGLE_CLIENT_ID": "1038318091306-55r5bhhp9di0ln64qg3otj0hjqk4hg29.apps.googleusercontent.com"
+  }
+}

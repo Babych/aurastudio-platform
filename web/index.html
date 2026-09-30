@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en" class="dark scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AuraStudio AI — Pro Studio Headshots & Limitless Photo Styles</title>
+    <meta name="description" content="Generate professional LinkedIn headshots, luxury outfits, and teleport anywhere in 30 seconds with Qwen 2.5 DiT AI Studio.">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Mobile & PWA Optimization -->
+    <meta name="theme-color" content="#030712">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Telegram Mini App WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Google Identity Services (GIS) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .gradient-text {
+            background: linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #60a5fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .glass-card {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-sans antialiased selection:bg-purple-500 selection:text-white">
+
+    <!-- Header / Navbar -->
+    <nav class="sticky top-0 z-50 glass-card border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <i data-lucide="sparkles" class="w-5 h-5 text-white"></i>
+                </div>
+                <span class="text-xl font-bold tracking-tight">AuraStudio<span class="text-purple-400">.AI</span></span>
+            </div>
+            
+            <div class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
+                <a href="#presets" class="hover:text-white transition" data-i18n="nav_presets">Style Catalog</a>
+                <a href="#studio" class="hover:text-white transition" data-i18n="nav_studio">AI Studio</a>
+                <a href="/dashboard.html" target="_blank" class="hover:text-purple-400 transition flex items-center gap-1">
+                    <i data-lucide="activity" class="w-4 h-4"></i>
+                    <span data-i18n="nav_dashboard">Live Telemetry</span>
+                </a>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- User Account / Auth Status -->
+                <div id="authStatusContainer" class="flex items-center gap-2">
+                    <button onclick="openAuthModal()" id="loginNavBtn" class="px-3.5 py-1.5 text-xs font-semibold text-gray-200 bg-purple-600/80 hover:bg-purple-600 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-purple-600/20">
+                        <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+                        <span data-i18n="btn_login">Sign In</span>
+                    </button>
+                    <button onclick="openUserModal()" id="userBadge" class="hidden items-center gap-2 px-3 py-1.5 glass-card hover:bg-gray-800 rounded-xl border border-purple-500/30 transition">
+                        <div class="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold" id="userAvatarLetter">U</div>
+                        <span class="text-xs font-medium text-gray-200" id="userNameLabel">User</span>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400"></i>
+                    </button>
+                </div>
+
+                <!-- Language Toggle -->
+                <button onclick="toggleLanguage()" class="px-2.5 py-1.5 text-xs font-semibold glass-card hover:bg-gray-800 rounded-lg text-gray-300 transition flex items-center gap-1.5">
+                    <span id="langFlag">🇺🇸</span>
+                    <span id="langLabel">EN</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="relative pt-20 pb-16 overflow-hidden">
+        <div class="absolute inset-0 -z-10 flex items-center justify-center opacity-30">
+            <div class="w-[600px] h-[600px] bg-purple-600/30 rounded-full blur-[140px]"></div>
+            <div class="w-[400px] h-[400px] bg-pink-500/20 rounded-full blur-[120px]"></div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-semibold mb-6">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                <span data-i18n="hero_badge">Powered by Qwen 2.5 DiT Diffusion Transformer</span>
+            </div>
+
+            <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight mb-6 max-w-4xl mx-auto leading-tight" data-i18n="hero_title">
+                Studio-Quality Portraits & Style Transformations <span class="gradient-text">in 30 Seconds</span>
+            </h1>
+            <p class="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed" data-i18n="hero_subtitle">
+                Upload a casual selfie and get magazine-grade photos for LinkedIn, Tinder, and social media. 1 free generation daily for signed in users.
+            </p>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button onclick="scrollToStudio()" class="w-full sm:w-auto px-8 py-4 text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-2xl shadow-xl shadow-purple-600/30 transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    <span data-i18n="hero_cta_studio">Open AI Studio (1 Free Daily Try)</span>
+                </button>
+                <a href="#presets" class="w-full sm:w-auto px-8 py-4 text-base font-semibold text-gray-300 hover:text-white glass-card rounded-2xl hover:bg-gray-800/80 transition flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    <span data-i18n="nav_presets">Browse Style Catalog</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Synthetic Presets Showcase Section -->
+    <section id="presets" class="py-16 border-t border-gray-800/50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold tracking-tight mb-3" data-i18n="presets_title">Curated Designer Presets</h2>
+                <p class="text-gray-400" data-i18n="presets_subtitle">Choose a pre-calibrated style in 1 click or write your own custom prompt in the studio</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Preset Card 1: LinkedIn Pro -->
+                <div onclick="selectPreset('headshot_linkedin', '💼 LinkedIn Business Pro', 'change clothes to a sharp tailored dark navy business suit with clean smooth solid wool fabric and crisp white shirt')" class="glass-card rounded-2xl p-4 hover:border-purple-500/50 transition cursor-pointer group">
+                    <div class="h-60 rounded-xl bg-gray-900 overflow-hidden mb-4 relative">
+                        <img src="/assets/presets/linkedin.webp" alt="LinkedIn Pro" class="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300">
+                        <span class="absolute top-2 right-2 px-2.5 py-1 rounded-md bg-purple-600/90 text-white text-xs font-bold shadow">HOT</span>
+                    </div>
+                    <h3 class="font-bold text-lg mb-1 group-hover:text-purple-400 transition">LinkedIn Pro Headshot</h3>
+                    <p class="text-xs text-gray-400">Tailored dark navy suit, crisp white shirt & diffuse studio lighting.</p>
+                </div>
+
+                <!-- Preset Card 2: Old Money -->
+                <div onclick="selectPreset('fashion_old_money', '🍸 Old Money Luxury', 'change clothes to an elegant Old Money beige cashmere sweater and tailored linen trousers')" class="glass-card rounded-2xl p-4 hover:border-purple-500/50 transition cursor-pointer group">
+                    <div class="h-60 rounded-xl bg-gray-900 overflow-hidden mb-4 relative">
+                        <img src="/assets/presets/old_money.webp" alt="Old Money" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                        <span class="absolute top-2 right-2 px-2.5 py-1 rounded-md bg-pink-600/90 text-white text-xs font-bold shadow">TRENDING</span>
+                    </div>
+                    <h3 class="font-bold text-lg mb-1 group-hover:text-purple-400 transition">Old Money Aesthetic</h3>
+                    <p class="text-xs text-gray-400">Beige luxury cashmere knit, quiet luxury tone and minimal aesthetics.</p>
+                </div>
+
+                <!-- Preset Card 3: Bali Travel -->
+                <div onclick="selectPreset('travel_bali', '🌴 Bali Sunset Travel', 'change environment to tropical Bali resort pool during warm golden hour sunset, wearing linen summer outfit')" class="glass-card rounded-2xl p-4 hover:border-purple-500/50 transition cursor-pointer group">
+                    <div class="h-60 rounded-xl bg-gray-900 overflow-hidden mb-4 relative">
+                        <img src="/assets/presets/bali.webp" alt="Bali Beach" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                    </div>
+                    <h3 class="font-bold text-lg mb-1 group-hover:text-purple-400 transition">Bali Golden Sunset</h3>
+                    <p class="text-xs text-gray-400">Warm sunset glow, tropical palms, and resort summer vibes.</p>
+                </div>
+
+                <!-- Preset Card 4: Blonde Restyle -->
+                <div onclick="selectPreset('hair_blonde', '✨ Platinum Blonde Restyle', 'change hair color to natural silky platinum blonde with delicate soft hair strands')" class="glass-card rounded-2xl p-4 hover:border-purple-500/50 transition cursor-pointer group">
+                    <div class="h-60 rounded-xl bg-gray-900 overflow-hidden mb-4 relative">
+                        <img src="/assets/presets/blonde.webp" alt="Platinum Blonde" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                    </div>
+                    <h3 class="font-bold text-lg mb-1 group-hover:text-purple-400 transition">Platinum Blonde Hair</h3>
+                    <p class="text-xs text-gray-400">Natural silky blonde hairstyle with soft volumetric waves.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI Studio Generator Section -->
+    <section id="studio" class="py-20 bg-gray-900/40 border-t border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-300 text-xs font-semibold mb-4">
+                    <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                    <span data-i18n="studio_badge">Interactive Generation Workspace</span>
+                </div>
+                <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight" data-i18n="studio_title">AI Studio Generator</h2>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                <!-- Left: Upload & Prompt Controls (7 cols) -->
+                <div class="lg:col-span-7 space-y-6">
+                    
+                    <!-- 1. Photo Upload Box -->
+                    <div class="glass-card rounded-3xl p-6">
+                        <label class="block text-sm font-semibold text-gray-200 mb-3" data-i18n="step_1_label">1. Upload your photo</label>
+                        
+                        <div id="dropzone" onclick="document.getElementById('fileInput').click()" class="border-2 border-dashed border-gray-700 hover:border-purple-500/80 rounded-2xl p-8 text-center cursor-pointer transition bg-gray-950/50 group">
+                            <input type="file" id="fileInput" accept="image/*" class="hidden" onchange="handleFile(this.files[0])">
+                            
+                            <div id="uploadPrompt" class="space-y-3">
+                                <div class="w-12 h-12 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto group-hover:scale-110 transition">
+                                    <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                                </div>
+                                <p class="text-sm font-medium text-gray-300" data-i18n="upload_drag">Click or drag & drop photo here</p>
+                                <p class="text-xs text-gray-500" data-i18n="upload_formats">Supports JPG, PNG, HEIC (up to 20MB)</p>
+                            </div>
+
+                            <div id="previewContainer" class="hidden space-y-3">
+                                <img id="imagePreview" src="" alt="Preview" class="max-h-64 mx-auto rounded-xl shadow-lg object-contain">
+                                <button type="button" onclick="event.stopPropagation(); clearImage()" class="text-xs text-red-400 hover:text-red-300 font-medium flex items-center justify-center gap-1 mx-auto" data-i18n="btn_remove_photo">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    <span>Remove photo</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Edit Instruction / Preset -->
+                    <div class="glass-card rounded-3xl p-6 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-sm font-semibold text-gray-200" data-i18n="step_2_label">2. Describe your edit (Preset or Custom Prompt)</label>
+                            <span id="currentPresetBadge" class="text-xs px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 font-medium border border-purple-500/30">
+                                <span data-i18n="selected_mode_label">Selected mode:</span> <strong id="currentPresetName">Custom</strong>
+                            </span>
+                        </div>
+
+                        <textarea id="promptInput" rows="3" class="w-full bg-gray-950/80 border border-gray-700 rounded-xl p-4 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition" placeholder="e.g. change clothes to a sharp tailored dark navy suit and white shirt, professional lighting"></textarea>
+
+                        <!-- Action Button -->
+                        <div class="pt-2 space-y-2">
+                            <button id="generateBtn" onclick="handleGenerateClick()" class="w-full py-4 bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-2xl shadow-xl shadow-purple-600/30 transition transform hover:-translate-y-0.5 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                                <span data-i18n="btn_generate">✨ Generate Photo Result</span>
+                            </button>
+                            <p id="freeTriesLabel" class="text-center text-xs text-purple-300/80 font-medium" data-i18n="free_tries_signin">
+                                ⚡ 1 Free generation unlocked after Sign In (anti-bot protection)
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Right: Generation Result Canvas (5 cols) -->
+                <div class="lg:col-span-5">
+                    <div class="glass-card rounded-3xl p-6 flex flex-col items-center justify-center min-h-[480px] text-center relative border border-gray-800">
+                        
+                        <!-- Empty Placeholder State -->
+                        <div id="resultPlaceholder" class="space-y-4">
+                            <div class="w-16 h-16 rounded-2xl bg-gray-800/60 text-gray-500 flex items-center justify-center mx-auto">
+                                <i data-lucide="image" class="w-8 h-8"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-300 mb-1" data-i18n="result_placeholder_title">Generation Result</h4>
+                                <p class="text-xs text-gray-500 max-w-xs" data-i18n="result_placeholder_desc">Upload a photo and hit Generate to view high precision rendering.</p>
+                            </div>
+                        </div>
+
+                        <!-- Loading State -->
+                        <div id="loadingState" class="hidden space-y-4">
+                            <div class="w-16 h-16 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin mx-auto"></div>
+                            <p class="text-sm font-medium text-purple-300 animate-pulse" data-i18n="loading_text">Rendering edits on Qwen 2.5 DiT Cloud Engine...</p>
+                            <p class="text-xs text-gray-500">Estimated duration: ~20-25 seconds</p>
+                        </div>
+
+                        <!-- Completed Result State -->
+                        <div id="resultView" class="hidden w-full space-y-4">
+                            <div class="relative rounded-2xl overflow-hidden border border-purple-500/40 shadow-2xl">
+                                <img id="resultImage" src="" alt="Result" class="w-full h-auto object-cover max-h-[420px]">
+                            </div>
+                            <div class="flex flex-wrap gap-3">
+                                <a id="downloadBtn" href="#" download="aurastudio_hd.png" class="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-purple-600/20">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    <span data-i18n="btn_download_hd">Download Ultra HD</span>
+                                </a>
+                                <button onclick="shareToTwitter()" id="shareBtn" class="px-4 py-3 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-sm font-semibold rounded-xl transition flex items-center gap-1.5 shadow">
+                                    <i data-lucide="share-2" class="w-4 h-4"></i>
+                                    <span data-i18n="btn_share_x">Share to X</span>
+                                </button>
+                                <button onclick="openFeedbackModal()" class="px-3 py-3 glass-card hover:bg-purple-600/20 text-purple-300 text-sm font-semibold rounded-xl transition flex items-center gap-1.5">
+                                    <i data-lucide="message-square" class="w-4 h-4"></i>
+                                    <span>Feedback</span>
+                                </button>
+                                <button onclick="resetStudio()" class="px-4 py-3 glass-card hover:bg-gray-800 text-gray-300 text-sm font-semibold rounded-xl transition" data-i18n="btn_reset">
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Community Feedback & Reviews Section -->
+    <section id="feedback-section" class="py-20 border-t border-gray-800/60 bg-gray-950/60">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-6 mb-12">
+                <div>
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-semibold mb-3">
+                        <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                        <span>Community & Quality Feedback</span>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight" data-i18n="reviews_title">User Reviews & Feedback</h2>
+                    <p class="text-xs sm:text-sm text-gray-400 mt-1" data-i18n="reviews_subtitle">Real impressions from creators using our Qwen 2.5 DiT studio engine.</p>
+                </div>
+                <button onclick="openFeedbackModal()" class="px-5 py-3 bg-purple-600/80 hover:bg-purple-600 text-white font-semibold text-xs sm:text-sm rounded-xl transition shadow-lg shadow-purple-600/20 flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span data-i18n="btn_leave_feedback">Leave Your Feedback</span>
+                </button>
+            </div>
+
+            <!-- Feedback Cards Grid -->
+            <div id="feedbackGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Fallback / Initial Featured Cards -->
+                <div class="glass-card rounded-2xl p-5 space-y-3 border border-gray-800">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold">O</div>
+                            <span class="text-xs font-bold text-gray-200">Oleksandr K.</span>
+                        </div>
+                        <span class="text-yellow-400 text-xs">⭐️⭐️⭐️⭐️⭐️</span>
+                    </div>
+                    <p class="text-xs text-gray-300 leading-relaxed">"LinkedIn Pro пресет видав неймовірну чіткість очей. Костюм сидить автентично без розмиття!"</p>
+                    <span class="text-[10px] text-gray-500 block">Verified Creator • LinkedIn Headshot</span>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5 space-y-3 border border-gray-800">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-full bg-pink-600 text-white flex items-center justify-center text-xs font-bold">Y</div>
+                            <span class="text-xs font-bold text-gray-200">Yuliia M.</span>
+                        </div>
+                        <span class="text-yellow-400 text-xs">⭐️⭐️⭐️⭐️⭐️</span>
+                    </div>
+                    <p class="text-xs text-gray-300 leading-relaxed">"Old Money стиль виглядає натурально, світло та тон шкіри 1-в-1 з моїм фото. Дуже круто!"</p>
+                    <span class="text-[10px] text-gray-500 block">Verified Creator • Old Money</span>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5 space-y-3 border border-gray-800">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">A</div>
+                            <span class="text-xs font-bold text-gray-200">Andrii V.</span>
+                        </div>
+                        <span class="text-yellow-400 text-xs">⭐️⭐️⭐️⭐️⭐️</span>
+                    </div>
+                    <p class="text-xs text-gray-300 leading-relaxed">"Швидкість генерації вражає — 20 секунд і готове фото високої чіткості для резюме."</p>
+                    <span class="text-[10px] text-gray-500 block">Verified Creator • Custom Edit</span>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5 space-y-3 border border-gray-800">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">M</div>
+                            <span class="text-xs font-bold text-gray-200">Mariia S.</span>
+                        </div>
+                        <span class="text-yellow-400 text-xs">⭐️⭐️⭐️⭐️⭐️</span>
+                    </div>
+                    <p class="text-xs text-gray-300 leading-relaxed">"Пресет з блондом зробив перехід волосся дуже акуратним і об'ємним. Чекаю нових стилів!"</p>
+                    <span class="text-[10px] text-gray-500 block">Verified Creator • Platinum Blonde</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section (Hidden) -->
+    <section id="pricing" class="hidden py-20 border-t border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-semibold mb-4">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                    <span data-i18n="pricing_badge">Monthly Subscriptions • Cancel Anytime</span>
+                </div>
+                <h2 class="text-3xl sm:text-5xl font-extrabold tracking-tight mb-4" data-i18n="pricing_title">Transparent Monthly Plans</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto" data-i18n="pricing_desc">No per-image paywalls. Enjoy a regular quota of AI generations every month.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+                
+                <!-- Plan 1: Starter Pro -->
+                <div class="glass-card rounded-3xl p-8 flex flex-col justify-between relative border border-gray-800 hover:border-gray-700 transition">
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">Starter Pro</h3>
+                        <p class="text-xs text-gray-400 mb-6" data-i18n="starter_desc">Perfect for LinkedIn refresh and fresh personal looks.</p>
+                        <div class="flex items-baseline gap-1 mb-6">
+                            <span class="text-4xl font-extrabold">$9.99</span>
+                            <span class="text-gray-400 text-sm">/ month</span>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-300 mb-8">
+                            <li class="flex items-center gap-2.5"><i data-lucide="check" class="w-4 h-4 text-purple-400"></i> <strong>50 Studio Generations</strong> / mo</li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="check" class="w-4 h-4 text-purple-400"></i> Access to all 4 curated presets</li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="check" class="w-4 h-4 text-purple-400"></i> Serverless Cloud GPU fast queue</li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="check" class="w-4 h-4 text-purple-400"></i> Ultra HD 4K upscale</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-2">
+                        <button onclick="handleSubscribe('starter')" class="w-full py-3.5 glass-card hover:bg-gray-800 text-white font-semibold rounded-xl border border-gray-700 transition flex items-center justify-center gap-2">
+                            <i data-lucide="credit-card" class="w-4 h-4"></i>
+                            <span data-i18n="btn_choose_starter">Pay with Card ($9.99)</span>
+                        </button>
+                        <button onclick="handleStarsPay('starter')" class="w-full py-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 font-medium text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+                            <span>⭐️ Pay 250 Telegram Stars</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Plan 2: Unlimited (Featured) -->
+                <div class="glass-card rounded-3xl p-8 flex flex-col justify-between relative border-2 border-purple-500 shadow-2xl shadow-purple-500/20 bg-gradient-to-b from-purple-950/30 to-gray-950">
+                    <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold uppercase tracking-wider shadow">
+                        <span data-i18n="most_popular">Most Popular</span>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">Creator Unlimited</h3>
+                        <p class="text-xs text-gray-400 mb-6" data-i18n="unlimited_desc">Limitless creative freedom for creators and professionals.</p>
+                        <div class="flex items-baseline gap-1 mb-6">
+                            <span class="text-4xl font-extrabold text-white">$19.99</span>
+                            <span class="text-gray-400 text-sm">/ month</span>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-200 mb-8">
+                            <li class="flex items-center gap-2.5"><i data-lucide="sparkles" class="w-4 h-4 text-pink-400"></i> <strong>Unlimited Generations</strong></li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="sparkles" class="w-4 h-4 text-pink-400"></i> Priority Cloud GPU Queue</li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="sparkles" class="w-4 h-4 text-pink-400"></i> Custom Prompt Studio & Tuning</li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="sparkles" class="w-4 h-4 text-pink-400"></i> Web + Telegram Mini App access</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-2">
+                        <button onclick="handleSubscribe('unlimited')" class="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl shadow-lg shadow-purple-600/30 transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                            <i data-lucide="credit-card" class="w-4 h-4"></i>
+                            <span data-i18n="btn_subscribe_unlimited">🔥 Subscribe with Card ($19.99)</span>
+                        </button>
+                        <button onclick="handleStarsPay('unlimited')" class="w-full py-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 font-medium text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+                            <span>⭐️ Pay 500 Telegram Stars</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Plan 3: Business -->
+                <div class="glass-card rounded-3xl p-8 flex flex-col justify-between relative border border-gray-800 hover:border-gray-700 transition">
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">Business & Teams</h3>
+                        <p class="text-xs text-gray-400 mb-6" data-i18n="business_desc">For HR teams, recruitment agencies, and brand studios.</p>
+                        <div class="flex items-baseline gap-1 mb-6">
+                            <span class="text-4xl font-extrabold">$49.99</span>
+                            <span class="text-gray-400 text-sm">/ month</span>
+                        </div>
+                        <ul class="space-y-3 text-sm text-gray-300 mb-8">
+                            <li class="flex items-center gap-2.5"><i data-lucide="check" class="w-4 h-4 text-purple-400"></i> <strong>500 High-Res Generations</strong> / mo</li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="check" class="w-4 h-4 text-purple-400"></i> Team seats (up to 5 members)</li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="check" class="w-4 h-4 text-purple-400"></i> REST API Access for HR platforms</li>
+                            <li class="flex items-center gap-2.5"><i data-lucide="check" class="w-4 h-4 text-purple-400"></i> Dedicated Support Manager</li>
+                        </ul>
+                    </div>
+                    <button onclick="handleSubscribe('business')" class="w-full py-3.5 glass-card hover:bg-gray-800 text-white font-semibold rounded-xl border border-gray-700 transition" data-i18n="btn_choose_business">
+                        Contact Sales
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Sign In / Registration Modal (Google GIS + Telegram Deep Link) -->
+    <div id="authModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-card max-w-md w-full rounded-3xl p-8 text-center space-y-6 relative border border-purple-500/40">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center shadow-lg shadow-purple-500/30">
+                <i data-lucide="shield-check" class="w-7 h-7 text-white"></i>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-2xl font-bold tracking-tight" data-i18n="auth_modal_title">Sign in to Claim 1 Free Photo</h3>
+                <p class="text-xs text-gray-400" data-i18n="auth_modal_desc">Quick 1-click verification to unlock your free generation and protect our GPU from automated bots.</p>
+            </div>
+            
+            <div class="space-y-4 text-left">
+                <!-- Google GIS Official Button Container -->
+                <div id="googleBtnContainer" class="flex justify-center w-full min-h-[44px]"></div>
+
+                <!-- Telegram Deep Link Button -->
+                <button onclick="startTelegramLogin()" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl flex items-center justify-center gap-3 transition shadow-lg shadow-blue-600/20">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span>Log in via @AuraStudioAiBot</span>
+                </button>
+            </div>
+
+            <div id="telegramQrBox" class="hidden space-y-3 pt-2">
+                <p class="text-xs text-purple-300 font-medium">Scan QR or tap to authorize via Telegram:</p>
+                <img id="telegramQrImg" src="" alt="QR" class="w-36 h-36 mx-auto rounded-xl border border-purple-500/30">
+                <a id="telegramDirectBtn" href="#" target="_blank" class="text-xs text-blue-400 hover:underline block">Open directly in Telegram</a>
+                <p class="text-[10px] text-gray-500 animate-pulse">Waiting for authorization...</p>
+            </div>
+
+            <p class="text-[11px] text-gray-500 text-center">By continuing, you agree to our Terms of Service.</p>
+        </div>
+    </div>
+
+    <!-- User Profile & Past History Modal -->
+    <div id="userModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-card max-w-lg w-full rounded-3xl p-8 space-y-6 relative border border-gray-700">
+            <button onclick="closeUserModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-purple-600 text-white flex items-center justify-center text-xl font-bold" id="userModalAvatar">U</div>
+                <div>
+                    <h3 class="text-lg font-bold" id="userModalName">User Account</h3>
+                    <p class="text-xs text-gray-400" id="userModalEmail">user@example.com</p>
+                    <span id="userModalPlan" class="inline-block mt-1 text-[11px] px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Free Plan</span>
+                </div>
+            </div>
+
+            <!-- Quota meter -->
+            <div class="glass-card rounded-2xl p-4 space-y-2 border border-gray-800">
+                <div class="flex justify-between text-xs text-gray-300 font-medium">
+                    <span>Generations Quota</span>
+                    <span id="quotaText">1 / 1 Free Used</span>
+                </div>
+                <div class="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div id="quotaBar" class="h-full bg-gradient-to-r from-purple-500 to-pink-500 w-full"></div>
+                </div>
+            </div>
+
+            <!-- Past generations gallery -->
+            <div class="space-y-3">
+                <h4 class="text-sm font-semibold text-gray-200">Recent Generations</h4>
+                <div id="userHistoryGrid" class="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto">
+                    <p class="text-xs text-gray-500 col-span-3 text-center py-4">No photos generated yet.</p>
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <a href="#pricing" onclick="closeUserModal()" class="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl text-center transition">
+                    ⭐️ Upgrade Plan
+                </a>
+                <button onclick="handleLogout()" class="px-4 py-3 glass-card hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-xl transition">
+                    Sign Out
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Limit Modal (1 Free Generation per 24 Hours) -->
+    <div id="paywallModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-card max-w-md w-full rounded-3xl p-8 text-center space-y-6 relative border-2 border-purple-500">
+            <button onclick="closePaywall()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center shadow-lg shadow-purple-500/30">
+                <i data-lucide="clock" class="w-8 h-8 text-white"></i>
+            </div>
+            <div class="space-y-2">
+                <h3 class="text-2xl font-bold tracking-tight" data-i18n="paywall_title">Daily Limit Reached</h3>
+                <p class="text-sm text-gray-400" id="dailyLimitDesc" data-i18n="paywall_desc">You have used your 1 free generation for today. Next generation available tomorrow. Come back in 24 hours!</p>
+            </div>
+            <div class="space-y-3">
+                <button onclick="closePaywall()" class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold rounded-xl shadow-lg transition">
+                    Got it (Зрозуміло)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback & Reviews Modal -->
+    <div id="feedbackModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-card max-w-md w-full rounded-3xl p-8 space-y-5 relative border border-purple-500/40">
+            <button onclick="closeFeedbackModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 rounded-2xl bg-purple-600/20 text-purple-400 mx-auto flex items-center justify-center mb-2">
+                    <i data-lucide="message-square" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold tracking-tight">Your Feedback & Experience</h3>
+                <p class="text-xs text-gray-400">Help us improve generation quality, speed and add new styles.</p>
+            </div>
+
+            <!-- Star Rating Selection -->
+            <div class="flex justify-center gap-2 py-1" id="starRatingContainer">
+                <button type="button" onclick="setRating(1)" class="star-btn text-2xl text-yellow-400 hover:scale-125 transition">★</button>
+                <button type="button" onclick="setRating(2)" class="star-btn text-2xl text-yellow-400 hover:scale-125 transition">★</button>
+                <button type="button" onclick="setRating(3)" class="star-btn text-2xl text-yellow-400 hover:scale-125 transition">★</button>
+                <button type="button" onclick="setRating(4)" class="star-btn text-2xl text-yellow-400 hover:scale-125 transition">★</button>
+                <button type="button" onclick="setRating(5)" class="star-btn text-2xl text-yellow-400 hover:scale-125 transition">★</button>
+            </div>
+
+            <!-- Category -->
+            <div class="space-y-1">
+                <label class="text-xs text-gray-300 font-medium">Category</label>
+                <select id="feedbackCategory" class="w-full bg-gray-950/80 border border-gray-700 rounded-xl p-3 text-xs text-gray-200 focus:outline-none focus:border-purple-500">
+                    <option value="quality">🌟 Image Quality & Skin Fidelity</option>
+                    <option value="speed">⚡ Generation Speed</option>
+                    <option value="styles">🎨 New Style Request</option>
+                    <option value="bug">🐛 Bug / Interface Feedback</option>
+                    <option value="general">💬 General Impression</option>
+                </select>
+            </div>
+
+            <!-- Comment -->
+            <div class="space-y-1">
+                <label class="text-xs text-gray-300 font-medium">Your Thoughts</label>
+                <textarea id="feedbackComment" rows="3" class="w-full bg-gray-950/80 border border-gray-700 rounded-xl p-3 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-purple-500 transition" placeholder="Write your honest impression or suggestion..."></textarea>
+            </div>
+
+            <button onclick="submitFeedback()" id="submitFeedbackBtn" class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold rounded-xl shadow-lg transition">
+                Submit Feedback
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="py-12 border-t border-gray-800 text-sm text-gray-500 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p>© 2026 AuraStudio.AI. All rights reserved.</p>
+            <div class="flex items-center gap-6">
+                <a href="#" class="hover:text-gray-300 transition">Terms of Service</a>
+                <a href="#" class="hover:text-gray-300 transition">Privacy Policy</a>
+                <a href="https://t.me/AuraStudioAiBot" target="_blank" class="text-purple-400 hover:text-purple-300 transition flex items-center gap-1">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span>@AuraStudioAiBot</span>
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive Script Logic & Multi-language Support -->
+    <script>
+        lucide.createIcons();
+
+        let currentLang = 'en';
+        let selectedFileBase64 = null;
+        let selectedPresetId = null;
+        let currentUser = JSON.parse(localStorage.getItem('aurastudio_user') || 'null');
+        // Auto-purge legacy mock test accounts from browser storage
+        if (currentUser && (currentUser.name === 'Google User' || (currentUser.email && currentUser.email.startsWith('user_')))) {
+            localStorage.removeItem('aurastudio_user');
+            currentUser = null;
+        }
+        let telegramPollInterval = null;
+        let appConfig = { google_client_id: '', telegram_bot_username: 'AuraStudioAiBot' };
+
+        const TRANSLATIONS = {
+            en: {
+                nav_presets: "Style Catalog",
+                nav_studio: "AI Studio",
+                nav_pricing: "Pricing",
+                nav_dashboard: "Live Telemetry",
+                btn_login: "Sign In",
+                hero_badge: "Powered by Qwen 2.5 DiT Diffusion Transformer",
+                hero_title: 'Studio-Quality Portraits & Style Transformations <span class="gradient-text">in 30 Seconds</span>',
+                hero_subtitle: "Upload a casual selfie and get magazine-grade photos for LinkedIn, Tinder, and social media. Free generation available upon sign in.",
+                hero_cta_studio: "Open AI Studio (1 Free Try)",
+                hero_cta_pricing: "Monthly Plans ($9.99/mo)",
+                presets_title: "Curated Designer Presets",
+                presets_subtitle: "Choose a pre-calibrated style in 1 click or write your own custom prompt in the studio",
+                studio_badge: "Interactive Generation Workspace",
+                studio_title: "AI Studio Generator",
+                step_1_label: "1. Upload your photo",
+                upload_drag: "Click or drag & drop photo here",
+                upload_formats: "Supports JPG, PNG, HEIC (up to 20MB)",
+                btn_remove_photo: "Remove photo",
+                step_2_label: "2. Describe your edit (Preset or Custom Prompt)",
+                selected_mode_label: "Selected mode:",
+                btn_generate: "✨ Generate Photo Result",
+                free_tries_signin: "⚡ 1 Free generation unlocked after Sign In (anti-bot protection)",
+                result_placeholder_title: "Generation Result",
+                result_placeholder_desc: "Upload a photo and hit Generate to view high precision rendering.",
+                loading_text: "Rendering edits on Qwen 2.5 DiT Cloud Engine...",
+                btn_download_hd: "Download Ultra HD",
+                btn_share_x: "Share to X",
+                btn_reset: "Reset",
+                pricing_badge: "Monthly Subscriptions • Cancel Anytime",
+                pricing_title: "Transparent Monthly Plans",
+                pricing_desc: "No per-image paywalls. Enjoy a regular quota of AI generations every month.",
+                starter_desc: "Perfect for LinkedIn refresh and fresh personal looks.",
+                btn_choose_starter: "Pay with Card ($9.99)",
+                most_popular: "Most Popular",
+                unlimited_desc: "Limitless creative freedom for creators and professionals.",
+                btn_subscribe_unlimited: "🔥 Subscribe with Card ($19.99)",
+                business_desc: "For HR teams, recruitment agencies, and brand studios.",
+                btn_choose_business: "Contact Sales",
+                auth_modal_title: "Sign in to Claim 1 Free Photo",
+                auth_modal_desc: "Quick 1-click verification to unlock your free generation and protect our GPU from automated bots.",
+                paywall_title: "Free Limit Reached",
+                paywall_desc: "You've used your 1 free registered generation. Upgrade to Starter Pro ($9.99/mo) or Unlimited to create more stunning photos!",
+                btn_upgrade_unlimited: "🔥 Get Creator Unlimited ($19.99/mo)",
+                btn_upgrade_starter: "Get Starter Pro ($9.99/mo)"
+            },
+            uk: {
+                nav_presets: "Каталог стилів",
+                nav_studio: "AI Студія",
+                nav_pricing: "Тарифи",
+                nav_dashboard: "Телеметрія",
+                btn_login: "Увійти",
+                hero_badge: "Потужність Qwen 2.5 DiT Diffusion Transformer",
+                hero_title: 'Студійні портрети та зміна стилю <span class="gradient-text">за 30 секунд</span>',
+                hero_subtitle: "Завантажте звичайне селфі — отримайте преміальні фото для LinkedIn, Tinder та соцмереж після входу.",
+                hero_cta_studio: "Відкрити AI Студію (1 Безкоштовно)",
+                hero_cta_pricing: "Тарифи підписки ($9.99/міс)",
+                presets_title: "Готові дизайнерські пресети",
+                presets_subtitle: "Оберіть готовий стиль в один клік або введіть власний опис у студії",
+                studio_badge: "Робоча область AI Студії",
+                studio_title: "Генератор образів",
+                step_1_label: "1. Завантажте вихідне фото",
+                upload_drag: "Натисніть або перетягніть фото сюди",
+                upload_formats: "Підтримуються JPG, PNG, HEIC (до 20MB)",
+                btn_remove_photo: "Видалити фото",
+                step_2_label: "2. Опис змін (Промпт або пресет)",
+                selected_mode_label: "Обраний режим:",
+                btn_generate: "✨ Згенерувати результат",
+                free_tries_signin: "⚡ 1 Безкоштовна спроба доступна після входу (захист від ботів)",
+                result_placeholder_title: "Результат генерації",
+                result_placeholder_desc: "Завантажте фото та натисніть «Згенерувати», щоб побачити результат високої чіткості.",
+                loading_text: "Виконується генерація на Qwen 2.5 DiT Cloud...",
+                btn_download_hd: "Завантажити Ultra HD",
+                btn_share_x: "Поділитися в X",
+                btn_reset: "Скинути",
+                pricing_badge: "Щомісячна підписка • Скасування будь-коли",
+                pricing_title: "Прозорі щомісячні тарифи",
+                pricing_desc: "Без прихованих оплат. Отримуйте фіксований ліміт студійних генерацій щомісяця.",
+                starter_desc: "Ідеально для оновлення резюме, LinkedIn та нових стильних образів.",
+                btn_choose_starter: "Оплата картою ($9.99)",
+                most_popular: "Найпопулярніший",
+                unlimited_desc: "Безлімітна свобода творчості для блогерів та кріейторів.",
+                btn_subscribe_unlimited: "🔥 Підписатися картою ($19.99)",
+                business_desc: "Для HR, рекрутерів, агенцій та корпоративних команд.",
+                btn_choose_business: "Зв'язатися з відділом продажів",
+                auth_modal_title: "Увійдіть для отримання 1 безкоштовного фото",
+                auth_modal_desc: "Швидка верифікація в 1 клік для захисту наших GPU від спам-ботів.",
+                paywall_title: "Вичерпано безкоштовний ліміт",
+                paywall_desc: "Ви використали 1 безкоштовну спробу. Оформіть підписку Starter Pro ($9.99/міс) або Unlimited, щоб продовжити творити!",
+                btn_upgrade_unlimited: "🔥 Оформити Unlimited ($19.99/міс)",
+                btn_upgrade_starter: "Оформити Starter Pro ($9.99/міс)"
+            }
+        };
+
+        // --- AUTH LOGIC ---
+        function checkUserAuthUI() {
+            if (currentUser && currentUser.id) {
+                document.getElementById('loginNavBtn').classList.add('hidden');
+                document.getElementById('userBadge').classList.remove('hidden');
+                document.getElementById('userBadge').classList.add('flex');
+                document.getElementById('userNameLabel').innerText = currentUser.name || currentUser.username || currentUser.email || 'User';
+                document.getElementById('userAvatarLetter').innerText = (currentUser.name || currentUser.username || 'U')[0].toUpperCase();
+                
+                if (currentUser.hours_left && currentUser.hours_left > 0) {
+                    document.getElementById('freeTriesLabel').innerText = currentLang === 'uk'
+                        ? `⏳ Наступна безкоштовна спроба через ${currentUser.hours_left} год`
+                        : `⏳ Next free generation available in ${currentUser.hours_left}h`;
+                } else {
+                    document.getElementById('freeTriesLabel').innerText = currentLang === 'uk'
+                        ? '⚡ Доступна 1 безкоштовна генерація на сьогодні'
+                        : '⚡ 1 Free generation available today';
+                }
+            } else {
+                document.getElementById('loginNavBtn').classList.remove('hidden');
+                document.getElementById('userBadge').classList.add('hidden');
+                document.getElementById('freeTriesLabel').innerText = currentLang === 'uk'
+                    ? '⚡ 1 Безкоштовна спроба на добу після входу (захист від ботів)'
+                    : '⚡ 1 Free daily generation unlocked after Sign In';
+            }
+        }
+
+        function openAuthModal() {
+            document.getElementById('authModal').classList.remove('hidden');
+            document.getElementById('authModal').classList.add('flex');
+            
+            if (window.google && window.google.accounts && window.google.accounts.id && appConfig.google_client_id) {
+                try {
+                    window.google.accounts.id.initialize({
+                        client_id: appConfig.google_client_id,
+                        callback: handleGoogleCredentialResponse,
+                        auto_select: false
+                    });
+                    window.google.accounts.id.renderButton(
+                        document.getElementById("googleBtnContainer"),
+                        { theme: "outline", size: "large", width: "100%", shape: "pill", text: "continue_with" }
+                    );
+                } catch(e) {}
+            }
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.add('hidden');
+            document.getElementById('authModal').classList.remove('flex');
+            if (telegramPollInterval) clearInterval(telegramPollInterval);
+        }
+
+        function openUserModal() {
+            if (!currentUser) return;
+            document.getElementById('userModalName').innerText = currentUser.name || currentUser.username || 'User';
+            document.getElementById('userModalEmail').innerText = currentUser.email || `@${currentUser.username}` || currentUser.id;
+            document.getElementById('userModalAvatar').innerText = (currentUser.name || currentUser.username || 'U')[0].toUpperCase();
+            
+            const used = currentUser.free_generations_used || 0;
+            const sub = currentUser.subscription;
+            if (sub && sub.status === 'active') {
+                document.getElementById('userModalPlan').innerText = `✨ ${sub.plan_tier.toUpperCase()} Plan`;
+                document.getElementById('quotaText').innerText = 'Unlimited Active';
+                document.getElementById('quotaBar').style.width = '100%';
+            } else {
+                document.getElementById('userModalPlan').innerText = 'Free Tier (1 Free)';
+                document.getElementById('quotaText').innerText = `${used} / 1 Free Used`;
+                document.getElementById('quotaBar').style.width = used >= 1 ? '100%' : '0%';
+            }
+
+            // Fetch history
+            fetch(`/api/user/profile?user_id=${encodeURIComponent(currentUser.id)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success' && data.history && data.history.length) {
+                        const grid = document.getElementById('userHistoryGrid');
+                        grid.innerHTML = data.history.map(g => `
+                            <div class="relative rounded-xl overflow-hidden glass-card group">
+                                <img src="${g.output_image_url || g.input_image_url}" class="w-full h-20 object-cover">
+                                <a href="${g.output_image_url || g.input_image_url}" download class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                </a>
+                            </div>
+                        `).join('');
+                        lucide.createIcons();
+                    }
+                }).catch(() => {});
+
+            document.getElementById('userModal').classList.remove('hidden');
+            document.getElementById('userModal').classList.add('flex');
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').classList.add('hidden');
+            document.getElementById('userModal').classList.remove('flex');
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('aurastudio_user');
+            currentUser = null;
+            closeUserModal();
+            checkUserAuthUI();
+        }
+
+        // Google GIS Credential Handler
+        function handleGoogleCredentialResponse(response) {
+            fetch('/api/auth/google', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: response.credential })
+            }).then(r => r.json()).then(data => {
+                if (data.status === 'success') {
+                    currentUser = data.user;
+                    localStorage.setItem('aurastudio_user', JSON.stringify(currentUser));
+                    closeAuthModal();
+                    checkUserAuthUI();
+                    alert(currentLang === 'uk' ? 'Успішний вхід через Google! 1 безкоштовне фото доступне.' : 'Signed in with Google! 1 Free photo unlocked.');
+                }
+            }).catch(err => {
+                alert('Google sign-in error: ' + err.message);
+            });
+        }
+
+        // Telegram Deep Link Login Flow with Live Polling
+        async function startTelegramLogin() {
+            try {
+                const res = await fetch('/api/auth/telegram-session', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('telegramQrImg').src = data.qr_url;
+                    document.getElementById('telegramDirectBtn').href = data.deep_link;
+                    document.getElementById('telegramQrBox').classList.remove('hidden');
+
+                    // Open direct link on mobile
+                    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                        window.open(data.deep_link, '_blank');
+                    }
+
+                    // Start polling
+                    if (telegramPollInterval) clearInterval(telegramPollInterval);
+                    telegramPollInterval = setInterval(async () => {
+                        try {
+                            const pollRes = await fetch(`/api/auth/telegram-poll?session_code=${data.session_code}`);
+                            const pollData = await pollRes.json();
+                            if (pollData.status === 'success' && pollData.user) {
+                                clearInterval(telegramPollInterval);
+                                currentUser = pollData.user;
+                                localStorage.setItem('aurastudio_user', JSON.stringify(currentUser));
+                                closeAuthModal();
+                                checkUserAuthUI();
+                                alert(currentLang === 'uk' ? `Вітаємо, ${currentUser.name}! Ви успішно увійшли.` : `Welcome, ${currentUser.name}! You are now signed in.`);
+                            }
+                        } catch(e) {}
+                    }, 1500);
+                }
+            } catch(e) {
+                alert('Telegram login error: ' + e.message);
+            }
+        }
+
+        // --- PAYMENT LOGIC (STRIPE & TELEGRAM STARS) ---
+        async function handleSubscribe(plan) {
+            if (!currentUser) {
+                openAuthModal();
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/payments/create-checkout-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan_tier: plan,
+                        user_id: currentUser.id,
+                        user_email: currentUser.email,
+                        return_url: window.location.href.split('?')[0] + '?payment=success'
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    if (data.sandbox) {
+                        alert(data.message);
+                        currentUser.subscription = { plan_tier: plan, status: 'active' };
+                        localStorage.setItem('aurastudio_user', JSON.stringify(currentUser));
+                        checkUserAuthUI();
+                    } else if (data.checkout_url) {
+                        window.location.href = data.checkout_url;
+                    }
+                } else {
+                    alert('Payment error: ' + data.message);
+                }
+            } catch(e) {
+                alert('Checkout error: ' + e.message);
+            }
+        }
+
+        async function handleStarsPay(plan) {
+            if (!currentUser) {
+                openAuthModal();
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/payments/create-stars-invoice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        plan_tier: plan,
+                        user_id: currentUser.id
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success' && data.invoice_url) {
+                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openInvoice) {
+                        window.Telegram.WebApp.openInvoice(data.invoice_url, function(status) {
+                            if (status === 'paid') {
+                                alert('⭐️ Telegram Stars payment successful!');
+                                location.reload();
+                            }
+                        });
+                    } else {
+                        window.open(data.invoice_url, '_blank');
+                    }
+                }
+            } catch(e) {
+                alert('Stars payment error: ' + e.message);
+            }
+        }
+
+        function openPaywall() {
+            document.getElementById('paywallModal').classList.remove('hidden');
+            document.getElementById('paywallModal').classList.add('flex');
+        }
+
+        function closePaywall() {
+            document.getElementById('paywallModal').classList.add('hidden');
+            document.getElementById('paywallModal').classList.remove('flex');
+        }
+
+        // --- FEEDBACK & REVIEWS LOGIC ---
+        let currentRating = 5;
+
+        function setRating(n) {
+            currentRating = n;
+            const starBtns = document.querySelectorAll('.star-btn');
+            starBtns.forEach((btn, idx) => {
+                btn.classList.toggle('text-yellow-400', idx < n);
+                btn.classList.toggle('text-gray-600', idx >= n);
+            });
+        }
+
+        function openFeedbackModal() {
+            if (!currentUser) {
+                openAuthModal();
+                return;
+            }
+            document.getElementById('feedbackModal').classList.remove('hidden');
+            document.getElementById('feedbackModal').classList.add('flex');
+        }
+
+        function closeFeedbackModal() {
+            document.getElementById('feedbackModal').classList.add('hidden');
+            document.getElementById('feedbackModal').classList.remove('flex');
+        }
+
+        async function submitFeedback() {
+            if (!currentUser) return;
+            const comment = document.getElementById('feedbackComment').value.trim();
+            const category = document.getElementById('feedbackCategory').value;
+            
+            if (!comment) {
+                alert(currentLang === 'uk' ? 'Будь ласка, напишіть ваш відгук.' : 'Please write your comment.');
+                return;
+            }
+
+            const btn = document.getElementById('submitFeedbackBtn');
+            btn.disabled = true;
+            btn.innerText = currentLang === 'uk' ? 'Надсилання...' : 'Submitting...';
+
+            try {
+                const res = await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUser.id,
+                        user_name: currentUser.name || currentUser.username || 'Verified Creator',
+                        avatar_url: currentUser.avatar_url || null,
+                        rating: currentRating,
+                        category: category,
+                        comment: comment
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert(currentLang === 'uk' ? 'Дякуємо за ваш відгук! Він допомагає нам ставати кращими.' : 'Thank you for your review!');
+                    document.getElementById('feedbackComment').value = '';
+                    closeFeedbackModal();
+                    loadCommunityFeedback();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch(e) {
+                alert('Connection error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = currentLang === 'uk' ? 'Надіслати відгук' : 'Submit Feedback';
+            }
+        }
+
+        async function loadCommunityFeedback() {
+            try {
+                const res = await fetch('/api/feedback');
+                const data = await res.json();
+                if (data.status === 'success' && data.reviews && data.reviews.length) {
+                    const grid = document.getElementById('feedbackGrid');
+                    grid.innerHTML = data.reviews.map(r => `
+                        <div class="glass-card rounded-2xl p-5 space-y-3 border border-gray-800 hover:border-purple-500/40 transition">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center text-xs font-bold">
+                                        ${(r.user_name || 'U')[0].toUpperCase()}
+                                    </div>
+                                    <span class="text-xs font-bold text-gray-200">${r.user_name || 'Creator'}</span>
+                                </div>
+                                <span class="text-yellow-400 text-xs">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5 - (r.rating || 5))}</span>
+                            </div>
+                            <p class="text-xs text-gray-300 leading-relaxed">"${r.comment}"</p>
+                            <span class="text-[10px] text-purple-400/80 block">Verified Creator • ${r.category ? r.category.toUpperCase() : 'REVIEW'}</span>
+                        </div>
+                    `).join('');
+                }
+            } catch(e) {}
+        }
+
+        // --- STUDIO UI & GENERATION LOGIC ---
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'uk' : 'en';
+            document.getElementById('langFlag').innerText = currentLang === 'en' ? '🇺🇸' : '🇺🇦';
+            document.getElementById('langLabel').innerText = currentLang.toUpperCase();
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (TRANSLATIONS[currentLang][key]) {
+                    el.innerHTML = TRANSLATIONS[currentLang][key];
+                }
+            });
+            checkUserAuthUI();
+        }
+
+        function scrollToStudio() {
+            document.getElementById('studio').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function selectPreset(id, name, prompt) {
+            selectedPresetId = id;
+            document.getElementById('currentPresetName').innerText = name;
+            document.getElementById('promptInput').value = prompt;
+            scrollToStudio();
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                selectedFileBase64 = e.target.result;
+                document.getElementById('imagePreview').src = selectedFileBase64;
+                document.getElementById('uploadPrompt').classList.add('hidden');
+                document.getElementById('previewContainer').classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearImage() {
+            selectedFileBase64 = null;
+            document.getElementById('imagePreview').src = '';
+            document.getElementById('fileInput').value = '';
+            document.getElementById('uploadPrompt').classList.remove('hidden');
+            document.getElementById('previewContainer').classList.add('hidden');
+        }
+
+        function resetStudio() {
+            clearImage();
+            document.getElementById('promptInput').value = '';
+            document.getElementById('currentPresetName').innerText = 'Custom';
+            selectedPresetId = null;
+            document.getElementById('resultView').classList.add('hidden');
+            document.getElementById('resultPlaceholder').classList.remove('hidden');
+        }
+
+        async function handleGenerateClick() {
+            // Require user login (Anti-Bot Security)
+            if (!currentUser || !currentUser.id) {
+                openAuthModal();
+                return;
+            }
+
+            if (!selectedFileBase64) {
+                alert(currentLang === 'uk' ? 'Будь ласка, завантажте фото.' : 'Please upload a photo first.');
+                return;
+            }
+
+            const prompt = document.getElementById('promptInput').value.trim();
+            if (!prompt) {
+                alert(currentLang === 'uk' ? 'Будь ласка, введіть опис або виберіть пресет.' : 'Please enter a prompt or pick a preset.');
+                return;
+            }
+
+            document.getElementById('resultPlaceholder').classList.add('hidden');
+            document.getElementById('resultView').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('generateBtn').disabled = true;
+
+            try {
+                const resp = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_base64: selectedFileBase64,
+                        prompt: prompt,
+                        preset_id: selectedPresetId || 'custom',
+                        user_id: currentUser.id,
+                        user_email: currentUser.email,
+                        user_name: currentUser.name
+                    })
+                });
+
+                const data = await resp.json();
+                if (data.status === 'success') {
+                    lastGenerationData = data;
+                    currentUser.free_generations_used = (currentUser.free_generations_used || 0) + 1;
+                    localStorage.setItem('aurastudio_user', JSON.stringify(currentUser));
+                    checkUserAuthUI();
+
+                    document.getElementById('loadingState').classList.add('hidden');
+                    document.getElementById('resultView').classList.remove('hidden');
+                    document.getElementById('resultImage').src = data.result_base64;
+                    document.getElementById('downloadBtn').href = data.result_base64;
+                } else if (data.status === 'daily_limit_reached' || data.status === 'limit_reached') {
+                    const hours = data.hours_left || 24;
+                    document.getElementById('dailyLimitDesc').innerText = currentLang === 'uk'
+                        ? `Ви використали 1 безкоштовне фото на сьогодні. Наступна генерація буде доступна через ${hours} год. Повертайтеся завтра!`
+                        : `You have used your 1 free generation for today. Next generation available in ${hours} hours. Come back tomorrow!`;
+                    openPaywall();
+                    document.getElementById('loadingState').classList.add('hidden');
+                    document.getElementById('resultPlaceholder').classList.remove('hidden');
+                } else {
+                    alert('Generation error: ' + (data.message || 'GPU error'));
+                    document.getElementById('loadingState').classList.add('hidden');
+                    document.getElementById('resultPlaceholder').classList.remove('hidden');
+                }
+            } catch (err) {
+                alert('Connection error: ' + err.message);
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('resultPlaceholder').classList.remove('hidden');
+            } finally {
+                document.getElementById('generateBtn').disabled = false;
+            }
+        }
+
+        let lastGenerationData = null;
+
+        async function shareToTwitter() {
+            if (!lastGenerationData) {
+                alert(currentLang === 'uk' ? 'Спочатку згенеруйте фото!' : 'Generate a photo first!');
+                return;
+            }
+
+            let shareUrl = lastGenerationData.share_url;
+            let twitterIntent = lastGenerationData.twitter_intent_url;
+
+            if (!shareUrl && lastGenerationData.task_id) {
+                try {
+                    const res = await fetch('/api/share/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ task_id: lastGenerationData.task_id })
+                    });
+                    const shareData = await res.json();
+                    if (shareData.status === 'success') {
+                        shareUrl = shareData.share_url;
+                        twitterIntent = shareData.twitter_intent_url;
+                    }
+                } catch(e) {}
+            }
+
+            if (!shareUrl) {
+                shareUrl = window.location.origin;
+                twitterIntent = `https://twitter.com/intent/tweet?text=${encodeURIComponent("Check out my AI transformation created with @AuraStudioAi! 🚀✨ Try 1 free transformation daily: ")}&url=${encodeURIComponent(shareUrl)}`;
+            }
+
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                alert(currentLang === 'uk' ? `🔗 Посилання на фото скопійовано в буфер обміну!\nВідкриваємо X (Twitter)...` : `🔗 Photo share link copied to clipboard!\nOpening X (Twitter)...`);
+            } catch(e) {}
+
+            window.open(twitterIntent, '_blank');
+        }
+
+        // --- INIT TELEGRAM MINI APP & GOOGLE GIS ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Telegram Mini App Auto-Detection & Initialization
+            if (window.Telegram && window.Telegram.WebApp) {
+                const tg = window.Telegram.WebApp;
+                tg.ready();
+                tg.expand();
+                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                    const u = tg.initDataUnsafe.user;
+                    const tgUserId = `tg_${u.id}`;
+                    fetch('/api/auth/telegram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            telegram_id: u.id,
+                            username: u.username || '',
+                            name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User',
+                            photo_url: u.photo_url || null
+                        })
+                    }).then(r => r.json()).then(data => {
+                        if (data.status === 'success') {
+                            currentUser = data.user;
+                            localStorage.setItem('aurastudio_user', JSON.stringify(currentUser));
+                            checkUserAuthUI();
+                        }
+                    }).catch(() => {
+                        currentUser = { id: tgUserId, name: u.first_name || 'Telegram User', free_generations_used: 0 };
+                        localStorage.setItem('aurastudio_user', JSON.stringify(currentUser));
+                        checkUserAuthUI();
+                    });
+                }
+            }
+
+            // Fetch dynamic public server config (Google Client ID, Bot username)
+            fetch('/api/config')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        appConfig = data;
+                        if (window.google && window.google.accounts && window.google.accounts.id && appConfig.google_client_id) {
+                            try {
+                                window.google.accounts.id.initialize({
+                                    client_id: appConfig.google_client_id,
+                                    callback: handleGoogleCredentialResponse,
+                                    auto_select: false
+                                });
+                                window.google.accounts.id.renderButton(
+                                    document.getElementById("googleBtnContainer"),
+                                    { theme: "outline", size: "large", width: "100%", shape: "pill", text: "continue_with" }
+                                );
+                            } catch(e) {}
+                        }
+                    }
+                }).catch(() => {});
+
+            // Drag & Drop event handlers for photo upload box
+            const dropzone = document.getElementById('dropzone');
+            if (dropzone) {
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropzone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropzone.classList.add('border-purple-500', 'bg-purple-950/40');
+                    }, false);
+                });
+
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropzone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropzone.classList.remove('border-purple-500', 'bg-purple-950/40');
+                    }, false);
+                });
+
+                dropzone.addEventListener('drop', (e) => {
+                    const dt = e.dataTransfer;
+                    if (dt && dt.files && dt.files.length) {
+                        handleFile(dt.files[0]);
+                    }
+                }, false);
+            }
+
+            checkUserAuthUI();
+            loadCommunityFeedback();
+        });
+    </script>
+</body>
+</html>

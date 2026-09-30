@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="uk" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuraStudio — Cloudflare Visual Monitoring & Telemetry Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .glass-card {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans antialiased p-4 sm:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-8">
+        <!-- Top Navigation / Header -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 glass-card rounded-2xl p-6">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <i data-lucide="activity" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">AuraStudio Visual Telemetry</h1>
+                    <p class="text-xs text-gray-400">Хмарний моніторинг Cloudflare D1 + Modal Nvidia A10G (Serverless)</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="gpuStatus">Modal A10G: READY</span>
+                </div>
+                <button onclick="fetchStats()" class="p-2 glass-card hover:bg-gray-800 rounded-xl text-gray-300 hover:text-white transition" title="Оновити дані">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+                <button onclick="lockDashboard()" class="p-2 glass-card hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-xl transition" title="Вийти / Заблокувати">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4 Key Metric Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Total Users -->
+            <div class="glass-card rounded-2xl p-6 space-y-2">
+                <div class="flex items-center justify-between text-gray-400">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Користувачі</span>
+                    <i data-lucide="users" class="w-4 h-4 text-purple-400"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-white" id="statUsers">0</div>
+                <p class="text-xs text-emerald-400 flex items-center gap-1">
+                    <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                    <span>Web + Telegram</span>
+                </p>
+            </div>
+
+            <!-- Total Generations -->
+            <div class="glass-card rounded-2xl p-6 space-y-2">
+                <div class="flex items-center justify-between text-gray-400">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Всього генерацій</span>
+                    <i data-lucide="sparkles" class="w-4 h-4 text-pink-400"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-white" id="statGens">0</div>
+                <p class="text-xs text-gray-400">Qwen 2.5 DiT 20B</p>
+            </div>
+
+            <!-- Revenue (Stars + Stripe) -->
+            <div class="glass-card rounded-2xl p-6 space-y-2">
+                <div class="flex items-center justify-between text-gray-400">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Дохід (Stars + USD)</span>
+                    <i data-lucide="coins" class="w-4 h-4 text-amber-400"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-white" id="statRevenue">$0.00</div>
+                <p class="text-xs text-amber-400" id="statStarsSub">⭐ 0 Stars / $0.00 Stripe</p>
+            </div>
+
+            <!-- Avg Duration -->
+            <div class="glass-card rounded-2xl p-6 space-y-2">
+                <div class="flex items-center justify-between text-gray-400">
+                    <span class="text-xs font-semibold uppercase tracking-wider">Швидкість генерації</span>
+                    <i data-lucide="clock" class="w-4 h-4 text-cyan-400"></i>
+                </div>
+                <div class="text-3xl font-extrabold text-white" id="statDuration">28.5 s</div>
+                <p class="text-xs text-cyan-400">22 кроки (Euler Simple)</p>
+            </div>
+        </div>
+
+        <!-- Real-time Visual Task Journal with Input/Output Images & User Accounts -->
+        <div class="glass-card rounded-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="image" class="w-5 h-5 text-purple-400"></i>
+                        <span>Візуальний журнал завдань (Input / Output / User)</span>
+                    </h3>
+                    <p class="text-xs text-gray-400">Реальні фото користувачів та згенеровані результати з бази D1</p>
+                </div>
+                <span class="text-xs text-purple-400 font-medium px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20">Live Sync</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-gray-300">
+                    <thead class="text-xs uppercase bg-gray-900/60 text-gray-400 border-b border-gray-800">
+                        <tr>
+                            <th class="py-3 px-4">Користувач</th>
+                            <th class="py-3 px-4">Вхідне фото</th>
+                            <th class="py-3 px-4">Результат AI</th>
+                            <th class="py-3 px-4">Стиль / Промпт</th>
+                            <th class="py-3 px-4">Статус</th>
+                            <th class="py-3 px-4">Час</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasksTableBody" class="divide-y divide-gray-800/60">
+                        <tr>
+                            <td colspan="6" class="py-12 text-center text-gray-500">
+                                <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-gray-600"></i>
+                                <span>Поки немає нових завдань. Зробіть першу генерацію на сайті!</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Infrastructure Status -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-card rounded-2xl p-5 space-y-2">
+                <div class="flex items-center gap-2 font-semibold text-sm">
+                    <i data-lucide="server" class="w-4 h-4 text-purple-400"></i>
+                    <span>Cloudflare Pages & Workers</span>
+                </div>
+                <p class="text-xs text-emerald-400 font-medium">● 100% Serverless Edge ($0/міс)</p>
+            </div>
+            <div class="glass-card rounded-2xl p-5 space-y-2">
+                <div class="flex items-center gap-2 font-semibold text-sm">
+                    <i data-lucide="database" class="w-4 h-4 text-purple-400"></i>
+                    <span>Cloudflare D1 Database</span>
+                </div>
+                <p class="text-xs text-emerald-400 font-medium">● Edge SQLite Global Replica ($0/міс)</p>
+            </div>
+            <div class="glass-card rounded-2xl p-5 space-y-2">
+                <div class="flex items-center gap-2 font-semibold text-sm">
+                    <i data-lucide="cpu" class="w-4 h-4 text-purple-400"></i>
+                    <span>Modal Nvidia A10G GPU</span>
+                </div>
+                <p class="text-xs text-emerald-400 font-medium">● Dynamic Auto-scaling on-demand</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Authentication Passkey Modal -->
+    <div id="adminAuthModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-card max-w-md w-full rounded-3xl p-8 space-y-6 relative border border-purple-500/50 shadow-2xl">
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
+                    <i data-lucide="shield-alert" class="w-8 h-8"></i>
+                </div>
+                <h3 class="text-2xl font-bold tracking-tight text-white">Admin Telemetry Access</h3>
+                <p class="text-xs text-gray-400">Цей дашборд містить конфіденційні метрики та історію генерацій. Введіть пароль адміністратора.</p>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5">Ключ Адміністратора (Admin Key)</label>
+                    <input type="password" id="adminKeyInput" placeholder="••••••••••••" required class="w-full bg-gray-950/90 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition shadow-inner">
+                </div>
+                <p id="adminAuthError" class="text-xs text-red-400 hidden text-center font-medium">❌ Невірний ключ адміністратора. Спробуйте ще раз.</p>
+                <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl shadow-lg shadow-purple-600/30 transition flex items-center justify-center gap-2">
+                    <i data-lucide="unlock" class="w-4 h-4"></i>
+                    <span>Розблокувати Телеметрію</span>
+                </button>
+            </form>
+            <div class="text-center">
+                <a href="/" class="text-xs text-gray-500 hover:text-purple-400 transition">← Повернутися на головну сторінку</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div id="imageModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4" onclick="closeImageModal()">
+        <div class="max-w-3xl w-full text-center space-y-3 relative" onclick="event.stopPropagation()">
+            <button onclick="closeImageModal()" class="absolute -top-10 right-0 text-gray-400 hover:text-white text-sm flex items-center gap-1">
+                <i data-lucide="x" class="w-5 h-5"></i> Закрити
+            </button>
+            <img id="modalImg" src="" class="max-h-[80vh] mx-auto rounded-2xl shadow-2xl border border-gray-800">
+            <p id="modalCaption" class="text-xs text-gray-400"></p>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function getAdminKey() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const keyFromUrl = urlParams.get('admin_key') || urlParams.get('key');
+            if (keyFromUrl) {
+                localStorage.setItem('aurastudio_admin_key', keyFromUrl);
+                return keyFromUrl;
+            }
+            return localStorage.getItem('aurastudio_admin_key') || '';
+        }
+
+        function showAdminAuthModal() {
+            document.getElementById('adminAuthModal').classList.remove('hidden');
+            document.getElementById('adminAuthModal').classList.add('flex');
+            document.getElementById('adminKeyInput').focus();
+            lucide.createIcons();
+        }
+
+        function hideAdminAuthModal() {
+            document.getElementById('adminAuthModal').classList.add('hidden');
+            document.getElementById('adminAuthModal').classList.remove('flex');
+            document.getElementById('adminAuthError').classList.add('hidden');
+        }
+
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const key = document.getElementById('adminKeyInput').value.trim();
+            if (!key) return;
+            localStorage.setItem('aurastudio_admin_key', key);
+            fetchStats();
+        }
+
+        function lockDashboard() {
+            localStorage.removeItem('aurastudio_admin_key');
+            showAdminAuthModal();
+        }
+
+        function openImageModal(src, caption) {
+            if (!src || src === 'uploaded_image' || src === 'generated_image') return;
+            document.getElementById('modalImg').src = src;
+            document.getElementById('modalCaption').innerText = caption || '';
+            document.getElementById('imageModal').classList.remove('hidden');
+            document.getElementById('imageModal').classList.add('flex');
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').classList.add('hidden');
+            document.getElementById('imageModal').classList.remove('flex');
+        }
+
+        async function fetchStats() {
+            const adminKey = getAdminKey();
+            try {
+                const headers = {};
+                if (adminKey) headers['X-Admin-Key'] = adminKey;
+
+                const res = await fetch('/api/stats', { headers });
+                
+                if (res.status === 401 || res.status === 403) {
+                    showAdminAuthModal();
+                    if (adminKey) {
+                        document.getElementById('adminAuthError').classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                const data = await res.json();
+                if (data.status === 'unauthorized') {
+                    showAdminAuthModal();
+                    document.getElementById('adminAuthError').classList.remove('hidden');
+                    return;
+                }
+
+                hideAdminAuthModal();
+                
+                document.getElementById('statUsers').innerText = data.total_users || 0;
+                document.getElementById('statGens').innerText = data.total_generations || 0;
+                document.getElementById('statDuration').innerText = (data.avg_duration || 28.5) + ' s';
+                document.getElementById('statRevenue').innerText = `$${(data.total_usd || 0).toFixed(2)}`;
+                document.getElementById('statStarsSub').innerText = `⭐ ${data.total_stars || 0} Stars / $${(data.total_usd || 0).toFixed(2)} Stripe`;
+                document.getElementById('gpuStatus').innerText = data.modal_status || "Modal A10G: READY";
+
+                const tbody = document.getElementById('tasksTableBody');
+                if (data.recent_tasks && data.recent_tasks.length > 0) {
+                    tbody.innerHTML = data.recent_tasks.map(t => {
+                        const hasInImg = t.input_img && (t.input_img.startsWith('data:') || t.input_img.startsWith('http'));
+                        const hasOutImg = t.output_img && (t.output_img.startsWith('data:') || t.output_img.startsWith('http'));
+
+                        const inputPreview = hasInImg 
+                            ? `<img src="${t.input_img}" onclick="openImageModal('${t.input_img}', 'Original Input')" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\\'w-12 h-12 rounded-lg bg-gray-900 border border-gray-800 flex items-center justify-center text-xs text-gray-500\\\'>🖼️</div>';" class="w-12 h-12 object-cover rounded-lg border border-gray-700 hover:scale-110 transition cursor-pointer shadow">`
+                            : `<div class="w-12 h-12 rounded-lg bg-gray-900 border border-gray-800 flex items-center justify-center text-xs text-gray-500"><i data-lucide="image" class="w-5 h-5"></i></div>`;
+
+                        const outputPreview = hasOutImg
+                            ? `<img src="${t.output_img}" onclick="openImageModal('${t.output_img}', 'AI Generated Result')" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\\'w-12 h-12 rounded-lg bg-gray-900 border border-purple-500/20 flex items-center justify-center text-xs text-purple-400\\\'>✨</div>';" class="w-12 h-12 object-cover rounded-lg border border-purple-500/50 hover:scale-110 transition cursor-pointer shadow-lg shadow-purple-500/20">`
+                            : `<div class="w-12 h-12 rounded-lg bg-gray-900 border border-purple-500/20 flex items-center justify-center text-xs text-purple-400"><i data-lucide="sparkles" class="w-5 h-5"></i></div>`;
+
+                        return `
+                            <tr class="hover:bg-gray-900/40 transition">
+                                <td class="py-3 px-4">
+                                    <div class="font-medium text-white flex items-center gap-2">
+                                        <div class="w-7 h-7 rounded-full bg-purple-600/30 text-purple-300 flex items-center justify-center text-xs font-bold uppercase">
+                                            ${(t.user || 'U')[0]}
+                                        </div>
+                                        <span class="truncate max-w-[150px]">${t.user || 'Anonymous'}</span>
+                                    </div>
+                                    <span class="text-xs text-gray-500 font-mono">${t.id}</span>
+                                </td>
+                                <td class="py-3 px-4">${inputPreview}</td>
+                                <td class="py-3 px-4">${outputPreview}</td>
+                                <td class="py-3 px-4">
+                                    <span class="font-medium text-purple-300 block">${t.preset || 'Custom'}</span>
+                                    <span class="text-xs text-gray-500 truncate max-w-[200px] block">${t.prompt || ''}</span>
+                                </td>
+                                <td class="py-3 px-4"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${t.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">${t.status}</span></td>
+                                <td class="py-3 px-4 text-xs text-gray-400">${t.duration ? t.duration + 's' : 'щойно'}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                    lucide.createIcons();
+                }
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
+        }
+
+        fetchStats();
+        setInterval(fetchStats, 15000);
+    </script>
+</body>
+</html>
