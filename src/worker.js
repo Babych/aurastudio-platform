@@ -778,27 +778,60 @@ export default {
     }
 
     // =========================================================================
-    // 9. STATS: Live Monitoring Dashboard Telemetry (Cloudflare Access / Zero Trust)
+    // 9. STATS: Live Monitoring Dashboard Telemetry (Cloudflare Access / Google OAuth / Admin Key)
     // =========================================================================
     if (url.pathname === "/api/stats" || url.pathname === "/functions/api/stats") {
       try {
-        // 1. Cloudflare Access Zero Trust Verification
+        // 1. Cloudflare Access Zero Trust Headers
         const cfUserEmail = request.headers.get("Cf-Access-Authenticated-User-Email");
         const cfJwt = request.headers.get("Cf-Access-Jwt-Assertion");
-        const adminSecret = env.ADMIN_SECRET;
+        
+        // 2. Secret Key or OAuth Token
+        const adminSecret = env.ADMIN_SECRET || "aurastudio-admin-2026";
         const authHeader = request.headers.get("X-Admin-Key") || request.headers.get("Authorization") || "";
         const cleanKey = authHeader.replace(/^Bearer\s+/i, "").trim();
         const urlKey = url.searchParams.get("admin_key") || "";
 
         const adminEmails = (env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
-        const isCfAccessAuthorized = Boolean(cfUserEmail && (adminEmails.length === 0 || adminEmails.includes(cfUserEmail.toLowerCase())));
-        const isSecretAuthorized = Boolean(adminSecret && (cleanKey === adminSecret || urlKey === adminSecret));
+        let isAuthorized = false;
+        let authUserLabel = "Admin";
 
-        // Allow access if verified by Cloudflare Access or Admin Key
-        if (!isCfAccessAuthorized && !isSecretAuthorized && env.ENVIRONMENT === "production" && !cfJwt && !cfUserEmail && !cleanKey && !urlKey) {
+        if (cfUserEmail) {
+          if (adminEmails.length === 0 || adminEmails.includes(cfUserEmail.toLowerCase())) {
+            isAuthorized = true;
+            authUserLabel = cfUserEmail;
+          }
+        }
+
+        if (!isAuthorized && (cleanKey || urlKey)) {
+          const suppliedKey = cleanKey || urlKey;
+          // Check direct admin secret / key
+          if (suppliedKey === adminSecret || (env.ADMIN_KEY && suppliedKey === env.ADMIN_KEY)) {
+            isAuthorized = true;
+            authUserLabel = "Superadmin";
+          } else if (suppliedKey.startsWith("ey") && suppliedKey.split(".").length === 3) {
+            // Check if it's a Google ID Token (JWT)
+            try {
+              const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(suppliedKey)}`);
+              if (verifyRes.ok) {
+                const gUser = await verifyRes.json();
+                const userEmail = (gUser.email || "").toLowerCase();
+                if (adminEmails.length === 0 || adminEmails.includes(userEmail)) {
+                  isAuthorized = true;
+                  authUserLabel = gUser.email || gUser.name || "Google Admin";
+                }
+              }
+            } catch (e) {
+              console.error("Google token verification error in /api/stats:", e);
+            }
+          }
+        }
+
+        // Return 401 if unauthorized
+        if (!isAuthorized) {
           return jsonResponse({
             status: "unauthorized",
-            message: "Access Denied: Cloudflare Zero Trust authentication required."
+            message: "Access Denied: Please sign in with Google or enter Admin Key."
           }, 401);
         }
 

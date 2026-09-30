@@ -21,6 +21,10 @@
             }
         }
     </script>
+    <!-- Google Identity Services (GIS) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -51,6 +55,12 @@
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span id="gpuStatus">Modal A10G: READY</span>
                 </div>
+                
+                <div id="adminUserBadge" class="hidden items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-medium">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-purple-400"></i>
+                    <span id="adminUserLabel">Admin</span>
+                </div>
+
                 <button onclick="fetchStats()" class="p-2 glass-card hover:bg-gray-800 rounded-xl text-gray-300 hover:text-white transition" title="Оновити дані">
                     <i data-lucide="refresh-cw" class="w-4 h-4"></i>
                 </button>
@@ -135,7 +145,7 @@
                         <tr>
                             <td colspan="6" class="py-12 text-center text-gray-500">
                                 <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-gray-600"></i>
-                                <span>Поки немає нових завдань. Зробіть першу генерацію на сайті!</span>
+                                <span>Завантаження даних моніторингу...</span>
                             </td>
                         </tr>
                     </tbody>
@@ -180,18 +190,48 @@
         </div>
     </div>
 
-    <!-- Access Denied Card (If not authenticated via Cloudflare Access) -->
+    <!-- Admin Authentication Modal (Google OAuth / Telegram / Secret Passkey) -->
     <div id="accessDeniedCard" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
-        <div class="glass-card max-w-md w-full rounded-3xl p-8 space-y-6 text-center border border-purple-500/40 shadow-2xl">
+        <div class="glass-card max-w-md w-full rounded-3xl p-8 space-y-6 text-center border border-purple-500/40 shadow-2xl relative">
             <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
-                <i data-lucide="shield-alert" class="w-8 h-8"></i>
+                <i data-lucide="shield-check" class="w-8 h-8"></i>
             </div>
+            
             <div class="space-y-2">
-                <h3 class="text-2xl font-bold tracking-tight text-white">Cloudflare Access Required</h3>
-                <p class="text-xs text-gray-400 leading-relaxed">Ця сторінка захищена політикою **Cloudflare Zero Trust Access**. Доступ надається лише авторизованим адміністраторам.</p>
+                <h3 class="text-2xl font-bold tracking-tight text-white">AuraStudio Dashboard Login</h3>
+                <p class="text-xs text-gray-400 leading-relaxed">Вхід для адміністраторів через Google, Telegram або ключ доступу.</p>
             </div>
-            <div class="pt-2 space-y-3">
-                <a href="/" class="block w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-xl shadow-lg transition">
+
+            <div id="authErrorMsg" class="hidden p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 font-medium">
+                Невірний ключ або обліковий запис не має прав адміністратора.
+            </div>
+
+            <!-- Login Options -->
+            <div class="space-y-3 pt-2">
+                <!-- Google GIS Button -->
+                <div id="googleBtnContainer" class="flex justify-center min-h-[44px]">
+                    <div id="g_id_onload"
+                         data-client_id=""
+                         data-callback="handleDashboardGoogleAuth"
+                         data-auto_prompt="false">
+                    </div>
+                    <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="filled_black" data-text="signin_with" data-size="large" data-logo_alignment="left" data-width="320"></div>
+                </div>
+
+                <!-- Passkey Form -->
+                <form onsubmit="handlePasskeyLogin(event)" class="space-y-3 pt-2 border-t border-gray-800/80">
+                    <div class="relative text-left">
+                        <label class="text-[11px] font-semibold uppercase text-gray-400 mb-1 block">Ключ адміністратора / Passkey</label>
+                        <div class="flex items-center gap-2">
+                            <input type="password" id="adminPasskeyInput" placeholder="Введіть ключ доступу..." class="w-full bg-gray-900 border border-gray-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none transition">
+                            <button type="submit" id="passkeySubmitBtn" class="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-xl shadow transition shrink-0">
+                                Увійти
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <a href="/" class="block w-full py-2.5 text-gray-400 hover:text-white font-medium text-xs rounded-xl transition">
                     ← Повернутися на головну
                 </a>
             </div>
@@ -200,6 +240,62 @@
 
     <script>
         lucide.createIcons();
+
+        let currentAdminToken = localStorage.getItem('aurastudio_admin_key') || localStorage.getItem('aurastudio_google_token') || '';
+
+        // Load config for Google GIS client ID
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                if (data.status === 'success' && data.google_client_id) {
+                    const el = document.getElementById('g_id_onload');
+                    if (el) el.setAttribute('data-client_id', data.google_client_id);
+                    if (window.google && window.google.accounts && window.google.accounts.id) {
+                        window.google.accounts.id.initialize({
+                            client_id: data.google_client_id,
+                            callback: handleDashboardGoogleAuth
+                        });
+                        window.google.accounts.id.renderButton(
+                            document.getElementById('googleBtnContainer'),
+                            { theme: 'filled_black', size: 'large', width: 320, shape: 'rectangular' }
+                        );
+                    }
+                }
+            } catch(e) {
+                console.error('Config load failed:', e);
+            }
+        }
+        loadConfig();
+
+        function handleDashboardGoogleAuth(response) {
+            if (response && response.credential) {
+                currentAdminToken = response.credential;
+                localStorage.setItem('aurastudio_google_token', response.credential);
+                fetchStats();
+            }
+        }
+
+        async function handlePasskeyLogin(e) {
+            e.preventDefault();
+            const input = document.getElementById('adminPasskeyInput');
+            const key = input.value.trim();
+            if (!key) return;
+
+            currentAdminToken = key;
+            localStorage.setItem('aurastudio_admin_key', key);
+            await fetchStats();
+        }
+
+        function lockDashboard() {
+            localStorage.removeItem('aurastudio_admin_key');
+            localStorage.removeItem('aurastudio_google_token');
+            currentAdminToken = '';
+            document.getElementById('accessDeniedCard').classList.remove('hidden');
+            document.getElementById('accessDeniedCard').classList.add('flex');
+            document.getElementById('adminUserBadge').classList.add('hidden');
+            document.getElementById('adminUserBadge').classList.remove('flex');
+        }
 
         function openImageModal(src, caption) {
             if (!src || src === 'uploaded_image' || src === 'generated_image') return;
@@ -216,11 +312,20 @@
 
         async function fetchStats() {
             try {
-                const res = await fetch('/api/stats');
+                const headers = { 'Content-Type': 'application/json' };
+                if (currentAdminToken) {
+                    headers['Authorization'] = `Bearer ${currentAdminToken}`;
+                    headers['X-Admin-Key'] = currentAdminToken;
+                }
+
+                const res = await fetch('/api/stats', { headers });
                 
                 if (res.status === 401 || res.status === 403) {
                     document.getElementById('accessDeniedCard').classList.remove('hidden');
                     document.getElementById('accessDeniedCard').classList.add('flex');
+                    if (currentAdminToken) {
+                        document.getElementById('authErrorMsg').classList.remove('hidden');
+                    }
                     return;
                 }
 
@@ -228,11 +333,20 @@
                 if (data.status === 'unauthorized') {
                     document.getElementById('accessDeniedCard').classList.remove('hidden');
                     document.getElementById('accessDeniedCard').classList.add('flex');
+                    document.getElementById('authErrorMsg').classList.remove('hidden');
                     return;
                 }
 
+                // Authorized
                 document.getElementById('accessDeniedCard').classList.add('hidden');
                 document.getElementById('accessDeniedCard').classList.remove('flex');
+                document.getElementById('authErrorMsg').classList.add('hidden');
+
+                if (data.auth_user) {
+                    document.getElementById('adminUserLabel').innerText = data.auth_user;
+                    document.getElementById('adminUserBadge').classList.remove('hidden');
+                    document.getElementById('adminUserBadge').classList.add('flex');
+                }
                 
                 document.getElementById('statUsers').innerText = data.total_users || 0;
                 document.getElementById('statGens').innerText = data.total_generations || 0;
