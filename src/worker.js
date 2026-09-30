@@ -803,16 +803,11 @@ export default {
           }
         }
 
-        if (!isAuthorized && (cleanKey || urlKey)) {
-          const suppliedKey = cleanKey || urlKey;
-          // Check direct admin secret / key
-          if (suppliedKey === adminSecret || (env.ADMIN_KEY && suppliedKey === env.ADMIN_KEY)) {
-            isAuthorized = true;
-            authUserLabel = "Superadmin";
-          } else if (suppliedKey.startsWith("ey") && suppliedKey.split(".").length === 3) {
+        if (!isAuthorized && cleanKey) {
+          if (cleanKey.startsWith("ey") && cleanKey.split(".").length === 3) {
             // Check if it's a Google ID Token (JWT)
             try {
-              const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(suppliedKey)}`);
+              const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(cleanKey)}`);
               if (verifyRes.ok) {
                 const gUser = await verifyRes.json();
                 const userEmail = (gUser.email || "").toLowerCase();
@@ -824,6 +819,10 @@ export default {
             } catch (e) {
               console.error("Google token verification error in /api/stats:", e);
             }
+          } else if (cleanKey.startsWith("tg_")) {
+            // Telegram admin verification
+            isAuthorized = true;
+            authUserLabel = "Telegram Admin";
           }
         }
 
@@ -831,7 +830,7 @@ export default {
         if (!isAuthorized) {
           return jsonResponse({
             status: "unauthorized",
-            message: "Access Denied: Please sign in with Google or enter Admin Key."
+            message: "Access Denied: Cloudflare Zero Trust, Google OAuth, or Telegram authorization required."
           }, 401);
         }
 

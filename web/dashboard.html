@@ -65,7 +65,7 @@
                     <i data-lucide="refresh-cw" class="w-4 h-4"></i>
                 </button>
                 <button onclick="lockDashboard()" class="p-2 glass-card hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-xl transition" title="Вийти / Заблокувати">
-                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
@@ -190,7 +190,7 @@
         </div>
     </div>
 
-    <!-- Admin Authentication Modal (Google OAuth / Telegram / Secret Passkey) -->
+    <!-- Admin Authentication Modal (1-Click Google OAuth & Telegram Login) -->
     <div id="accessDeniedCard" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
         <div class="glass-card max-w-md w-full rounded-3xl p-8 space-y-6 text-center border border-purple-500/40 shadow-2xl relative">
             <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
@@ -198,15 +198,15 @@
             </div>
             
             <div class="space-y-2">
-                <h3 class="text-2xl font-bold tracking-tight text-white">AuraStudio Dashboard Login</h3>
-                <p class="text-xs text-gray-400 leading-relaxed">Вхід для адміністраторів через Google, Telegram або ключ доступу.</p>
+                <h3 class="text-2xl font-bold tracking-tight text-white">Вхід до дашборду</h3>
+                <p class="text-xs text-gray-400 leading-relaxed">Ця сторінка захищена політикою доступу Cloudflare. Будь ласка, авторизуйтесь через Google або Telegram.</p>
             </div>
 
             <div id="authErrorMsg" class="hidden p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-400 font-medium">
-                Невірний ключ або обліковий запис не має прав адміністратора.
+                Обліковий запис не має прав адміністратора.
             </div>
 
-            <!-- Login Options -->
+            <!-- 1-Click OAuth Buttons -->
             <div class="space-y-3 pt-2">
                 <!-- Google GIS Button -->
                 <div id="googleBtnContainer" class="flex justify-center min-h-[44px]">
@@ -218,18 +218,20 @@
                     <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="filled_black" data-text="signin_with" data-size="large" data-logo_alignment="left" data-width="320"></div>
                 </div>
 
-                <!-- Passkey Form -->
-                <form onsubmit="handlePasskeyLogin(event)" class="space-y-3 pt-2 border-t border-gray-800/80">
-                    <div class="relative text-left">
-                        <label class="text-[11px] font-semibold uppercase text-gray-400 mb-1 block">Ключ адміністратора / Passkey</label>
-                        <div class="flex items-center gap-2">
-                            <input type="password" id="adminPasskeyInput" placeholder="Введіть ключ доступу..." class="w-full bg-gray-900 border border-gray-700 focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none transition">
-                            <button type="submit" id="passkeySubmitBtn" class="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-xl shadow transition shrink-0">
-                                Увійти
-                            </button>
-                        </div>
-                    </div>
-                </form>
+                <!-- Telegram Login Button -->
+                <button onclick="startDashboardTelegramLogin()" id="tgLoginBtn" class="w-full py-3 px-4 bg-[#24A1DE] hover:bg-[#2092ca] text-white font-semibold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span>Увійти через Telegram</span>
+                </button>
+
+                <!-- Telegram QR Box (if started on desktop) -->
+                <div id="tgQrBox" class="hidden p-4 rounded-2xl bg-gray-900 border border-gray-800 space-y-3">
+                    <p class="text-[11px] text-gray-400">Відскануйте QR-код або відкрийте бота:</p>
+                    <img id="tgQrImg" src="" class="w-36 h-36 mx-auto rounded-xl bg-white p-2">
+                    <a id="tgDirectLink" href="#" target="_blank" class="block text-xs text-purple-400 hover:underline">
+                        Відкрити @AuraStudioAiBot →
+                    </a>
+                </div>
 
                 <a href="/" class="block w-full py-2.5 text-gray-400 hover:text-white font-medium text-xs rounded-xl transition">
                     ← Повернутися на головну
@@ -241,7 +243,8 @@
     <script>
         lucide.createIcons();
 
-        let currentAdminToken = localStorage.getItem('aurastudio_admin_key') || localStorage.getItem('aurastudio_google_token') || '';
+        let currentAdminToken = localStorage.getItem('aurastudio_google_token') || localStorage.getItem('aurastudio_admin_token') || '';
+        let tgPollTimer = null;
 
         // Load config for Google GIS client ID
         async function loadConfig() {
@@ -276,20 +279,42 @@
             }
         }
 
-        async function handlePasskeyLogin(e) {
-            e.preventDefault();
-            const input = document.getElementById('adminPasskeyInput');
-            const key = input.value.trim();
-            if (!key) return;
+        // Telegram Auth Flow
+        async function startDashboardTelegramLogin() {
+            try {
+                const res = await fetch('/api/auth/telegram-session', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('tgQrImg').src = data.qr_url;
+                    document.getElementById('tgDirectLink').href = data.deep_link;
+                    document.getElementById('tgQrBox').classList.remove('hidden');
 
-            currentAdminToken = key;
-            localStorage.setItem('aurastudio_admin_key', key);
-            await fetchStats();
+                    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                        window.open(data.deep_link, '_blank');
+                    }
+
+                    if (tgPollTimer) clearInterval(tgPollTimer);
+                    tgPollTimer = setInterval(async () => {
+                        try {
+                            const pollRes = await fetch(`/api/auth/telegram-poll?session_code=${data.session_code}`);
+                            const pollData = await pollRes.json();
+                            if (pollData.status === 'success' && pollData.user) {
+                                clearInterval(tgPollTimer);
+                                currentAdminToken = `tg_${pollData.user.id || pollData.user.username}`;
+                                localStorage.setItem('aurastudio_admin_token', currentAdminToken);
+                                fetchStats();
+                            }
+                        } catch(e) {}
+                    }, 1500);
+                }
+            } catch(e) {
+                alert('Telegram login error: ' + e.message);
+            }
         }
 
         function lockDashboard() {
-            localStorage.removeItem('aurastudio_admin_key');
             localStorage.removeItem('aurastudio_google_token');
+            localStorage.removeItem('aurastudio_admin_token');
             currentAdminToken = '';
             document.getElementById('accessDeniedCard').classList.remove('hidden');
             document.getElementById('accessDeniedCard').classList.add('flex');
@@ -315,7 +340,6 @@
                 const headers = { 'Content-Type': 'application/json' };
                 if (currentAdminToken) {
                     headers['Authorization'] = `Bearer ${currentAdminToken}`;
-                    headers['X-Admin-Key'] = currentAdminToken;
                 }
 
                 const res = await fetch('/api/stats', { headers });
