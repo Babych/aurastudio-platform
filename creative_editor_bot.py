@@ -1,7 +1,7 @@
 """
 Telegram Creative AI Studio & Magic Photo Editor Bot
-Powered by Qwen 2.5 DiT 20B (Diffusion Transformer on Modal Cloud GPU L40S)
-Author: Antigravity / Babych
+Powered by Qwen 2.5 DiT 20B (Diffusion Transformer on Serverless Cloud GPU)
+Author: AuraStudio AI Team
 """
 
 import os
@@ -54,13 +54,13 @@ if IS_DEV_MODE:
 else:
     BOT_TOKEN = os.getenv("CREATIVE_BOT_TOKEN", os.getenv("BOT_TOKEN", ""))
 
-MODAL_ENDPOINT_URL = os.getenv("MODAL_ENDPOINT_URL", "https://dima8085--qwen-image-edit-fp8-service-fastapi-app.modal.run/edit")
+MODAL_ENDPOINT_URL = os.getenv("MODAL_ENDPOINT_URL", "")
 
-# Super Admin IDs & Usernames
-raw_super_ids = os.getenv("SUPER_ADMIN_IDS", os.getenv("SUPER_ADMIN_ID", "1359272262"))
+# Super Admin IDs & Usernames (strictly from .env)
+raw_super_ids = os.getenv("SUPER_ADMIN_IDS", os.getenv("SUPER_ADMIN_ID", ""))
 SUPER_ADMIN_IDS = [int(x.strip()) for x in raw_super_ids.split(",") if x.strip().isdigit()]
 
-raw_super_usernames = os.getenv("SUPER_ADMIN_USERNAMES", "lame618")
+raw_super_usernames = os.getenv("SUPER_ADMIN_USERNAMES", "")
 SUPER_ADMIN_USERNAMES = [u.strip().lstrip("@").lower() for u in raw_super_usernames.split(",") if u.strip()]
 
 def is_super_admin(user_id: int, username: str = "") -> bool:

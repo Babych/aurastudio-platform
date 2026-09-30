@@ -514,9 +514,9 @@ export default {
           }
 
           const modalEndpoints = [
-            "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
-            env.MODAL_ENDPOINT_URL || "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
-          ];
+            env.MODAL_PRIMARY_URL || env.MODAL_ENDPOINT_URL || "https://your-primary-modal-app.modal.run",
+            env.MODAL_FALLBACK_URL
+          ].filter(Boolean);
 
           const taskId = `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
           const shareToken = taskId.replace('task_', 's_');

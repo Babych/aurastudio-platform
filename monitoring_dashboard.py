@@ -38,7 +38,7 @@ load_env_file()
 PORT = int(os.getenv("DASHBOARD_PORT", "8090"))
 SUPER_ADMIN_IDS = [
     int(i.strip())
-    for i in os.getenv("SUPER_ADMIN_IDS", "1359272262").split(",")
+    for i in os.getenv("SUPER_ADMIN_IDS", "").split(",")
     if i.strip().isdigit()
 ]
 

@@ -15,9 +15,9 @@ export async function onRequestPost(context) {
         }
 
         const modalEndpoints = [
-            "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
-            env.MODAL_ENDPOINT_URL || "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
-        ];
+            env.MODAL_PRIMARY_URL || env.MODAL_ENDPOINT_URL || "https://your-primary-modal-app.modal.run",
+            env.MODAL_FALLBACK_URL
+        ].filter(Boolean);
         const taskId = `web_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
         const smoothNegative = "textured fabric, pattern, tweed, speckles, flecks, lint, dots on fabric, dotted texture, fabric dots, moles, excessive moles, freckles, skin spots, blemishes, noisy skin, speckled, dithering, salt and pepper noise, textured grain, pattern dots, text, words, letters, font, typography, watermark, signature, caption, logo, brand, poster, title, label, changed face, altered eyes, blurry face, different identity, fake skin, plastic wax, doll, airbrushed skin, deformed face, bad eyes, cartoon, deformed, blurry";
