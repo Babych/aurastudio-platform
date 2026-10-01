@@ -515,10 +515,9 @@
                 <div class="text-xs text-pink-400 font-mono" id="videoResultDurationTag">24.0s</div>
             </div>
 
-            <!-- Video Player -->
             <div class="relative w-full aspect-[9/16] max-h-[65vh] mx-auto rounded-2xl overflow-hidden bg-black border border-gray-800 shadow-2xl flex items-center justify-center">
-                <video id="videoResultPlayer" class="w-full h-full object-contain" loop autoplay playsinline controls>
-                    <source id="videoResultSource" src="" type="video/mp4">
+                <video id="videoResultPlayer" class="w-full h-full object-contain" loop autoplay playsinline controls onerror="alert('Failed to load video format.')">
+                    <source id="videoResultSource" src="" type="video/mp4" onerror="alert('Failed to load video format.')">
                     Your browser does not support HTML5 video.
                 </video>
             </div>
@@ -1187,6 +1186,9 @@
 
         function resetDanceForNewPrompt() {
             document.getElementById('videoResultBox').classList.add('hidden');
+            const videoSource = document.getElementById('videoResultSource');
+            if (videoSource) videoSource.src = '';
+            document.getElementById('videoResultPlayer').load();
             document.getElementById('danceStudioBox').scrollIntoView({ behavior: 'smooth' });
         }
 

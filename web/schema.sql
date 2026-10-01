@@ -67,3 +67,14 @@ CREATE INDEX IF NOT EXISTS idx_subs_user ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_gens_user ON generations(user_id);
 CREATE INDEX IF NOT EXISTS idx_gens_created ON generations(created_at);
 CREATE INDEX IF NOT EXISTS idx_telemetry_created ON telemetry_events(created_at);
+
+-- 5. Critical Error Logs for Monitoring Dashboard
+CREATE TABLE IF NOT EXISTS error_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    context TEXT NOT NULL,              -- e.g., 'modal_video_gpu', 'stripe_webhook', 'telegram_auth'
+    error_message TEXT NOT NULL,
+    user_id TEXT,                       -- Optional, if we know who triggered it
+    details JSON,                       -- Stack trace or additional info
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_errors_created ON error_logs(created_at);

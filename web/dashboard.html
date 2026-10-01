@@ -153,6 +153,40 @@
             </div>
         </div>
 
+        <!-- Critical Error Logs -->
+        <div class="glass-card rounded-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-red-400"></i>
+                        <span>Критичні помилки системи (System Errors)</span>
+                    </h3>
+                    <p class="text-xs text-gray-400">Останні збої генерації та вебхуків з D1</p>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-gray-300">
+                    <thead class="text-xs uppercase bg-gray-900/60 text-gray-400 border-b border-gray-800">
+                        <tr>
+                            <th class="py-3 px-4">Час</th>
+                            <th class="py-3 px-4">Контекст</th>
+                            <th class="py-3 px-4">Повідомлення</th>
+                            <th class="py-3 px-4">Користувач (ID)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="errorsTableBody" class="divide-y divide-gray-800/60">
+                        <tr>
+                            <td colspan="4" class="py-12 text-center text-gray-500">
+                                <i data-lucide="check-circle" class="w-8 h-8 mx-auto mb-2 text-emerald-500"></i>
+                                <span>Помилок немає! Все працює ідеально.</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Infrastructure Status -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="glass-card rounded-2xl p-5 space-y-2">
@@ -415,6 +449,31 @@
                             </tr>
                         `;
                     }).join('');
+                    lucide.createIcons();
+                }
+
+                const errTbody = document.getElementById('errorsTableBody');
+                if (data.recent_errors && data.recent_errors.length > 0) {
+                    errTbody.innerHTML = data.recent_errors.map(e => {
+                        const dateStr = new Date(e.created_at).toLocaleString();
+                        return `
+                            <tr class="hover:bg-red-900/20 transition text-red-200/80">
+                                <td class="py-3 px-4 font-mono text-[11px]">${dateStr}</td>
+                                <td class="py-3 px-4 font-semibold text-red-400 text-xs">${e.context}</td>
+                                <td class="py-3 px-4 text-xs break-all">${e.error_message}</td>
+                                <td class="py-3 px-4 text-xs font-mono text-gray-400">${e.user_id || 'Unknown'}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    errTbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="py-12 text-center text-gray-500">
+                                <i data-lucide="check-circle" class="w-8 h-8 mx-auto mb-2 text-emerald-500"></i>
+                                <span>Помилок немає! Все працює ідеально.</span>
+                            </td>
+                        </tr>
+                    `;
                     lucide.createIcons();
                 }
             } catch (e) {

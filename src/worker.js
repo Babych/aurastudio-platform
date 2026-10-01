@@ -18,6 +18,22 @@ function jsonResponse(data, status = 200) {
   });
 }
 
+// Helper: Log critical errors to D1
+function logCriticalError(env, ctx, context, errorMsg, userId = null, details = null) {
+  if (env.DB) {
+    ctx.waitUntil((async () => {
+      try {
+        await env.DB.prepare(`
+          INSERT INTO error_logs (context, error_message, user_id, details)
+          VALUES (?, ?, ?, ?)
+        `).bind(context, errorMsg, userId, details ? JSON.stringify(details) : null).run();
+      } catch (e) {
+        console.error("Failed to write to error_logs:", e);
+      }
+    })());
+  }
+}
+
 // In-memory / D1 auth session store for Telegram deep link login
 const authSessions = new Map();
 
@@ -622,6 +638,7 @@ export default {
             result_base64: resultDataUri
           });
         } catch (err) {
+          logCriticalError(env, ctx, "modal_photo_gpu", err.message, null);
           return jsonResponse({ status: "error", message: err.message }, 500);
         }
       }
@@ -683,10 +700,8 @@ export default {
             }
           }
 
-          // Fallback procedural video generator if remote GPU cold-starting
           if (!resultVideoUri) {
-            // Return high-quality dance animation manifest
-            resultVideoUri = image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`;
+            throw new Error(lastErrText || "Video generation failed on remote GPU.");
           }
 
           if (env.DB) {
@@ -696,7 +711,9 @@ export default {
                   INSERT INTO telemetry_events (event_type, source, user_id, duration_seconds, usd_amount, details)
                   VALUES ('VIDEO_DANCE_GENERATION', 'web', ?, ?, 0.05, ?)
                 `).bind(user_id, parseFloat(dur), JSON.stringify({ template: dance_template_id, task_id: taskId })).run();
-              } catch (e) {}
+              } catch (e) {
+                console.error("Video telemetry error:", e);
+              }
             })());
           }
 
@@ -713,6 +730,7 @@ export default {
             dance_template: dance_template_id
           });
         } catch (err) {
+          logCriticalError(env, ctx, "modal_video_gpu", err.message, null);
           return jsonResponse({ status: "error", message: err.message }, 500);
         }
       }
@@ -927,6 +945,7 @@ export default {
 
         let totalUsers = 0, totalGens = 0, avgDur = "0.0", totalStars = 0, totalUsd = 0.0;
         let recentTasks = [];
+        let recentErrors = [];
 
         if (env.DB) {
           try {
@@ -939,6 +958,12 @@ export default {
               ORDER BY created_at DESC 
               LIMIT 15
             `).all();
+            const eLogs = await env.DB.prepare(`
+              SELECT id, context, error_message, user_id, details, created_at
+              FROM error_logs
+              ORDER BY created_at DESC
+              LIMIT 10
+            `).all();
             
             if (u && u.count !== null && u.count !== undefined) totalUsers = u.count;
             if (g && g.total_gens !== null && g.total_gens !== undefined) totalGens = g.total_gens;
@@ -946,6 +971,7 @@ export default {
             if (r && r.total_stars) totalStars = r.total_stars;
             if (r && r.total_usd) totalUsd = r.total_usd;
             if (t && t.results && t.results.length) recentTasks = t.results;
+            if (eLogs && eLogs.results && eLogs.results.length) recentErrors = eLogs.results;
           } catch(e) {
             console.error("Stats query error:", e);
           }
@@ -959,7 +985,8 @@ export default {
           total_usd: totalUsd,
           avg_duration: avgDur === "0.0" ? "28.5" : avgDur,
           modal_status: "READY (Nvidia A10G 24GB)",
-          recent_tasks: recentTasks
+          recent_tasks: recentTasks,
+          recent_errors: recentErrors
         });
       } catch (err) {
         return jsonResponse({ status: "error", message: err.message }, 500);

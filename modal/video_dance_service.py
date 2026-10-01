@@ -72,7 +72,7 @@ class DanceResponse(BaseModel):
     image=video_image,
     gpu="A10G",
     timeout=300,
-    container_idle_timeout=120
+    scaledown_window=120
 )
 class VideoDanceEngine:
     @modal.enter()
@@ -119,9 +119,13 @@ class VideoDanceEngine:
 
             # 3. Export to High-Bitrate H.264 MP4 with FFmpeg
             import imageio
-            out_mp4_bytes = io.BytesIO()
+            import tempfile
+            
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
             with imageio.get_writer(
-                out_mp4_bytes,
+                tmp_path,
                 format="mp4",
                 fps=req.fps,
                 codec="libx264",
@@ -130,8 +134,10 @@ class VideoDanceEngine:
                 for f in output_frames:
                     writer.append_data(f)
 
-            out_mp4_bytes.seek(0)
-            b64_video = base64.b64encode(out_mp4_bytes.read()).decode("utf-8")
+            with open(tmp_path, "rb") as f:
+                b64_video = base64.b64encode(f.read()).decode("utf-8")
+                
+            os.remove(tmp_path)
             data_uri = f"data:video/mp4;base64,{b64_video}"
 
             dur = round(time.time() - t0, 2)
@@ -148,3 +154,9 @@ class VideoDanceEngine:
                 message=str(e),
                 duration_seconds=round(time.time() - t0, 2)
             )
+        finally:
+            import torch
+            import gc
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
