@@ -1392,8 +1392,10 @@ export default {
             }
           }
 
-          // Handle /dance command
-          if (text === "/dance" || text.startsWith("/dance")) {
+          const lowerText = text.trim().toLowerCase();
+
+          // Handle /dance command or plain text "dance" / "танець"
+          if (lowerText === "/dance" || lowerText.startsWith("/dance") || lowerText === "dance" || lowerText === "танець" || lowerText.includes("танець") || lowerText.includes("dance")) {
             await sendTgMessage(chatId, "🕺 *TikTok Dance & Reels Studio*\n\nОберіть стиль вірусного танцю і надішліть фото людини (бажано по пояс або в повний зріст):", {
               reply_markup: {
                 inline_keyboard: [
@@ -1414,8 +1416,8 @@ export default {
             return jsonResponse({ ok: true });
           }
 
-          // Handle /balance command
-          if (text === "/balance" || text.startsWith("/balance")) {
+          // Handle /balance command or "balance" / "баланс"
+          if (lowerText === "/balance" || lowerText.startsWith("/balance") || lowerText === "balance" || lowerText === "баланс" || lowerText.includes("баланс")) {
             let balance = 0;
             let subStatus = "Немає активної підписки";
             if (env.DB) {
@@ -1441,8 +1443,8 @@ export default {
             return jsonResponse({ ok: true });
           }
 
-          // Handle /help command
-          if (text === "/help" || text.startsWith("/help")) {
+          // Handle /help command or "help" / "допомога"
+          if (lowerText === "/help" || lowerText.startsWith("/help") || lowerText === "help" || lowerText === "допомога" || lowerText === "інструкція") {
             const helpText = "ℹ️ *AuraStudio AI — Довідка та команди:*\n\n" +
               "🕺 */dance* — Створити вірусне танцювальне відео з фото\n" +
               "🏠 */start* — Головне меню та відкриття Web App\n" +
