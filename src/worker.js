@@ -1069,6 +1069,33 @@ export default {
           });
         };
 
+        const sendTgVideo = async (chatId, videoUrlOrBase64, caption, extra = {}) => {
+          if (videoUrlOrBase64.startsWith("data:") || !videoUrlOrBase64.startsWith("http")) {
+            const base64Data = videoUrlOrBase64.replace(/^data:video\/\w+;base64,/, "");
+            const binaryStr = atob(base64Data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+            
+            const formData = new FormData();
+            formData.append("chat_id", chatId.toString());
+            formData.append("caption", caption);
+            formData.append("parse_mode", "Markdown");
+            formData.append("video", new Blob([bytes], { type: "video/mp4" }), "dance.mp4");
+            if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
+
+            return fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+              method: "POST",
+              body: formData
+            });
+          }
+
+          return fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, video: videoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
+          });
+        };
+
         // Handle Telegram Stars Pre-Checkout Query
         if (update.pre_checkout_query) {
           await fetch(`https://api.telegram.org/bot${botToken}/answerPreCheckoutQuery`, {
@@ -1183,6 +1210,64 @@ export default {
             }
             return jsonResponse({ ok: true });
           }
+
+          // Handle Dance Video Generation from message photo
+          if (data.startsWith("dance_")) {
+            const templateId = data.replace("dance_", "");
+            const danceNames = {
+              viral_house_shuffle: "Viral House Shuffle",
+              kpop_hiphop_groove: "K-Pop Hip-Hop Groove",
+              electro_rave_shuffle: "Electro Rave Shuffle",
+              latina_salsa_groove: "Latina Salsa Groove"
+            };
+            const danceName = danceNames[templateId] || "TikTok Dance";
+
+            const photos = cb.message?.photo;
+            if (photos && photos.length > 0) {
+              const bestPhoto = photos[photos.length - 1];
+              await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
+
+              ctx.waitUntil((async () => {
+                try {
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                  const fileData = await fileRes.json();
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+
+                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+                  const photoBuffer = await photoBlobRes.arrayBuffer();
+                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+
+                  // Call Modal GPU Video Dance failover
+                  const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
+                    image_base64: photoBase64,
+                    dance_template_id: templateId,
+                    audio_sync: true,
+                    fps: 24,
+                    height: 768,
+                    width: 512
+                  });
+
+                  if (mData.status === "success" && mData.result_video_base64) {
+                    await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *${danceName}*\nДвигун: AuraDance 2.5 DiT`, {
+                      reply_markup: {
+                        inline_keyboard: [
+                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
+                        ]
+                      }
+                    });
+                  } else {
+                    await sendTgMessage(chatId, "⚠️ Не вдалося створити відео. Спробуйте інше фото (бажано в повний зріст або по пояс).");
+                  }
+                } catch (err) {
+                  logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
+                  await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
+                }
+              })());
+            } else {
+              await sendTgMessage(chatId, `✅ Обрано стиль *${danceName}*!\n\n📸 Тепер надішліть сюди фото людини (бажано по пояс або в повний зріст), щоб згенерувати танець.`);
+            }
+            return jsonResponse({ ok: true });
+          }
         }
 
         // Handle Messages
@@ -1241,9 +1326,74 @@ export default {
             }
           }
 
+          // Handle /dance command
+          if (text === "/dance" || text.startsWith("/dance")) {
+            await sendTgMessage(chatId, "🕺 *TikTok Dance & Reels Studio*\n\nОберіть стиль вірусного танцю і надішліть фото людини (бажано по пояс або в повний зріст):", {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "🕺 Viral House Shuffle", callback_data: "dance_viral_house_shuffle" },
+                    { text: "💃 K-Pop Hip-Hop", callback_data: "dance_kpop_hiphop_groove" }
+                  ],
+                  [
+                    { text: "🪩 Electro Rave Shuffle", callback_data: "dance_electro_rave_shuffle" },
+                    { text: "💃 Latina Salsa Groove", callback_data: "dance_latina_salsa_groove" }
+                  ],
+                  [
+                    { text: "🌐 Відкрити Web Dance Studio", web_app: { url: "https://aurastudio-ai.memory1024.workers.dev" } }
+                  ]
+                ]
+              }
+            });
+            return jsonResponse({ ok: true });
+          }
+
           // Handle Photo Upload in Telegram
           if (photos && photos.length > 0) {
-            const caption = update.message.caption;
+            const caption = update.message.caption || "";
+            const isDanceCaption = caption.toLowerCase().includes("танець") || caption.toLowerCase().includes("dance") || caption.startsWith("/dance");
+
+            if (isDanceCaption) {
+              await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець за вашим запитом...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
+              ctx.waitUntil((async () => {
+                try {
+                  const bestPhoto = photos[photos.length - 1];
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                  const fileData = await fileRes.json();
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+
+                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+                  const photoBuffer = await photoBlobRes.arrayBuffer();
+                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+
+                  const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
+                    image_base64: photoBase64,
+                    dance_template_id: "viral_house_shuffle",
+                    audio_sync: true,
+                    fps: 24,
+                    height: 768,
+                    width: 512
+                  });
+
+                  if (mData.status === "success" && mData.result_video_base64) {
+                    await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *Viral House Shuffle*\nДвигун: AuraDance 2.5 DiT`, {
+                      reply_markup: {
+                        inline_keyboard: [
+                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
+                        ]
+                      }
+                    });
+                  } else {
+                    await sendTgMessage(chatId, "⚠️ Не вдалося створити відео. Спробуйте інше фото.");
+                  }
+                } catch (err) {
+                  logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
+                  await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
+                }
+              })());
+              return jsonResponse({ ok: true });
+            }
+
             if (caption) {
               // Directly generate with user caption
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${caption}"_...`);
@@ -1274,23 +1424,27 @@ export default {
               })());
             } else {
               // Offer Preset Selection Buttons
-              await sendTgMessage(chatId, `📸 *Фото отримано!* Оберіть бажаний стиль або вірусного персонажа для трансформації:`, {
+              await sendTgMessage(chatId, `📸 *Фото отримано!* Оберіть бажаний стиль або згенеруйте відео-танець:`, {
                 reply_markup: {
                   inline_keyboard: [
+                    [
+                      { text: "🕺 TikTok Танець (Shuffle)", callback_data: "dance_viral_house_shuffle" },
+                      { text: "💃 TikTok Танець (K-Pop)", callback_data: "dance_kpop_hiphop_groove" }
+                    ],
                     [
                       { text: "💼 LinkedIn Pro", callback_data: "preset_linkedin" },
                       { text: "🍸 Old Money", callback_data: "preset_old_money" }
                     ],
                     [
-                      { text: "🎭 Muppet Meme Guy", callback_data: "preset_muppet" },
-                      { text: "🤪 3D Goofy Caricature", callback_data: "preset_goofy3d" }
+                      { text: "🎭 Muppet Meme", callback_data: "preset_muppet" },
+                      { text: "🤪 3D Goofy", callback_data: "preset_goofy3d" }
                     ],
                     [
                       { text: "👱‍♀️ Blonde Restyle", callback_data: "preset_blonde" },
                       { text: "🌴 Bali Sunset", callback_data: "preset_bali" }
                     ],
                     [
-                      { text: "🕺 TikTok Dance Studio", url: "https://aurastudio-ai.memory1024.workers.dev" },
+                      { text: "🌐 Відкрити Web Studio", url: "https://aurastudio-ai.memory1024.workers.dev" },
                       { text: "⭐ Отримати Pro", callback_data: "buy_starter" }
                     ]
                   ]
