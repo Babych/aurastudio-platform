@@ -109,6 +109,7 @@ export default {
         status: "success",
         google_client_id: env.GOOGLE_CLIENT_ID || "",
         telegram_bot_username: env.TELEGRAM_BOT_USERNAME || "AuraStudioAiBot",
+        telegram_only_payments: env.TELEGRAM_ONLY_PAYMENTS !== "false",
         environment: env.ENVIRONMENT || "production"
       });
     }
@@ -355,17 +356,21 @@ export default {
           hoursLeft = Math.ceil((86400 - lastGen.seconds_ago) / 3600);
         }
 
+        const starsBalance = (u && u.stars_balance) || 0;
+        const hasPaidAccess = !!sub || starsBalance >= 10;
+
         return jsonResponse({
           status: "success",
-          user: u || { id: userId, free_generations_used: 0 },
+          user: u || { id: userId, free_generations_used: 0, stars_balance: 0 },
+          stars_balance: starsBalance,
           hours_left: hoursLeft,
-          can_generate: hoursLeft === 0,
+          can_generate: (hoursLeft === 0) || hasPaidAccess,
           subscription: sub || null,
           history: (recentGens && recentGens.results) || []
         });
       }
 
-      return jsonResponse({ status: "success", user: { id: userId, free_generations_used: 0 }, subscription: null, history: [] });
+      return jsonResponse({ status: "success", user: { id: userId, free_generations_used: 0, stars_balance: 0 }, stars_balance: 0, subscription: null, history: [] });
     }
 
     // =========================================================================
@@ -392,6 +397,18 @@ export default {
           };
 
           const selected = planConfig[plan_tier] || planConfig.starter;
+
+          // Feature Flag: Telegram Only Payments mode
+          if (env.TELEGRAM_ONLY_PAYMENTS !== "false") {
+            const botUsername = env.TELEGRAM_BOT_USERNAME || "AuraStudioAiBot";
+            const deepLink = `https://t.me/${botUsername}?start=buy_${plan_tier || 'starter'}`;
+            return jsonResponse({
+              status: "success",
+              payment_provider: "telegram_stars",
+              checkout_url: deepLink,
+              message: "Redirecting to Telegram Stars checkout in @AuraStudioAiBot"
+            });
+          }
 
           // If live Stripe Secret Key is present, call Stripe REST API
           if (stripeKey) {
@@ -564,8 +581,11 @@ export default {
             }, 401);
           }
 
-          // Check 24-hour daily quota in D1 (1 free generation per day for authorized users)
+          // Check 24-hour daily quota & Telegram Stars balance in D1
           if (env.DB) {
+            const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user_id).first();
+            const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user_id).first();
+
             const lastGen = await env.DB.prepare(`
               SELECT CAST((strftime('%s', 'now') - strftime('%s', created_at)) AS INTEGER) as seconds_ago
               FROM generations 
@@ -575,12 +595,21 @@ export default {
             `).bind(user_id).first();
 
             if (lastGen && lastGen.seconds_ago !== null && lastGen.seconds_ago < 86400) {
-              const hoursLeft = Math.ceil((86400 - lastGen.seconds_ago) / 3600);
-              return jsonResponse({
-                status: "daily_limit_reached",
-                hours_left: hoursLeft,
-                message: `Ваш щоденний ліміт (1 безкоштовне фото на добу) вичерпано. Наступна спроба буде доступна через ${hoursLeft} год.`
-              }, 403);
+              if (sub) {
+                // Active subscription - allowed
+              } else if (u && (u.stars_balance || 0) >= 10) {
+                // Deduct 10 Telegram Stars from user balance
+                await env.DB.prepare("UPDATE users SET stars_balance = stars_balance - 10 WHERE id = ?").bind(user_id).run();
+              } else {
+                const hoursLeft = Math.ceil((86400 - lastGen.seconds_ago) / 3600);
+                return jsonResponse({
+                  status: "daily_limit_reached",
+                  hours_left: hoursLeft,
+                  stars_balance: (u && u.stars_balance) || 0,
+                  required_stars: 10,
+                  message: `Ваш щоденний безкоштовний ліміт вичерпано. Поповніть баланс Telegram Stars (⭐️ 10) або зачекайте ${hoursLeft} год.`
+                }, 403);
+              }
             }
           }
 
@@ -703,6 +732,37 @@ export default {
               status: "auth_required",
               message: "Please sign in to generate AI TikTok Dance Reels."
             }, 401);
+          }
+
+          // Check Subscription or Stars Balance in D1 (40 Stars per Dance Video)
+          if (env.DB) {
+            const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user_id).first();
+            const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user_id).first();
+
+            const lastVideo = await env.DB.prepare(`
+              SELECT CAST((strftime('%s', 'now') - strftime('%s', created_at)) AS INTEGER) as seconds_ago
+              FROM telemetry_events 
+              WHERE user_id = ? AND event_type = 'VIDEO_DANCE_GENERATION'
+              ORDER BY created_at DESC 
+              LIMIT 1
+            `).bind(user_id).first();
+
+            // First generation is free per 24 hours, subsequent require subscription or 40 Stars
+            if (lastVideo && lastVideo.seconds_ago !== null && lastVideo.seconds_ago < 86400) {
+              if (sub) {
+                // Subscription active
+              } else if (u && (u.stars_balance || 0) >= 40) {
+                // Deduct 40 Telegram Stars
+                await env.DB.prepare("UPDATE users SET stars_balance = stars_balance - 40 WHERE id = ?").bind(user_id).run();
+              } else {
+                return jsonResponse({
+                  status: "stars_required",
+                  stars_balance: (u && u.stars_balance) || 0,
+                  required_stars: 40,
+                  message: `Для додаткової генерації відео-танцю потрібно 40 Telegram Stars (⭐️) або активна підписка.`
+                }, 403);
+              }
+            }
           }
 
           const taskId = `dance_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
