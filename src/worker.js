@@ -1355,20 +1355,25 @@ export default {
             const starsAmount = payment.total_amount;
             const payload = JSON.parse(payment.invoice_payload || "{}");
             const planTier = payload.plan_tier || "starter";
+            const targetUserId = payload.user_id || userId;
 
             if (env.DB) {
               await env.DB.prepare(`
                 INSERT OR REPLACE INTO subscriptions (id, user_id, stripe_customer_id, plan_tier, status, monthly_credits_limit, credits_used_this_period)
                 VALUES (?, ?, ?, ?, 'active', 50, 0)
-              `).bind(`star_sub_${Date.now()}`, userId, `tg_${chatId}`, planTier).run();
+              `).bind(`star_sub_${Date.now()}`, targetUserId, `tg_${chatId}`, planTier).run();
+
+              await env.DB.prepare(`
+                UPDATE users SET stars_balance = COALESCE(stars_balance, 0) + ? WHERE id = ?
+              `).bind(starsAmount, targetUserId).run();
 
               await env.DB.prepare(`
                 INSERT INTO telemetry_events (event_type, source, user_id, stars_amount, details)
                 VALUES ('STARS_PURCHASE', 'telegram_bot', ?, ?, ?)
-              `).bind(userId, starsAmount, JSON.stringify(payment)).run();
+              `).bind(targetUserId, starsAmount, JSON.stringify(payment)).run();
             }
 
-            await sendTgMessage(chatId, `⭐️ *Дякуємо за оплату!*\n\nВаша підписка *${planTier.toUpperCase()}* успішно активована! Ви можете створювати студійні фото на сайті або прямо тут.`);
+            await sendTgMessage(chatId, `⭐️ *Дякуємо за оплату!*\n\nВаша підписка *${planTier.toUpperCase()}* (+${starsAmount} Stars) успішно активована! Баланс оновлено як у боті, так і на сайті.`);
             return jsonResponse({ ok: true });
           }
 
