@@ -108,7 +108,7 @@ export default {
       return jsonResponse({
         status: "success",
         google_client_id: env.GOOGLE_CLIENT_ID || "",
-        telegram_bot_username: env.TELEGRAM_BOT_USERNAME || "AuraStudioAiBot",
+        telegram_bot_username: env.TELEGRAM_BOT_USERNAME || "thing_intellect_bot",
         telegram_only_payments: env.TELEGRAM_ONLY_PAYMENTS !== "false",
         environment: env.ENVIRONMENT || "production"
       });
@@ -298,7 +298,7 @@ export default {
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 mins
       authSessions.set(sessionCode, { status: "pending", expiresAt, user: null });
 
-      const botUsername = "AuraStudioAiBot";
+      const botUsername = env.TELEGRAM_BOT_USERNAME || "thing_intellect_bot";
       const deepLink = `https://t.me/${botUsername}?start=${sessionCode}`;
 
       return jsonResponse({
@@ -516,9 +516,10 @@ export default {
           }
 
           // Fallback deep link
+          const botUser = env.TELEGRAM_BOT_USERNAME || "thing_intellect_bot";
           return jsonResponse({
             status: "success",
-            invoice_url: `https://t.me/AuraStudioAiBot?start=buy_${plan_tier}`
+            invoice_url: `https://t.me/${botUser}?start=buy_${plan_tier}`
           });
         } catch (err) {
           return jsonResponse({ status: "error", message: err.message }, 500);

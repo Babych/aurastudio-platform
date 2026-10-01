@@ -24,7 +24,7 @@
     "TELEGRAM_ONLY_PAYMENTS": "true",
     "MODAL_ENDPOINT_URL": "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
     "ENVIRONMENT": "production",
-    "TELEGRAM_BOT_USERNAME": "AuraStudioAiBot",
+    "TELEGRAM_BOT_USERNAME": "thing_intellect_bot",
     "GOOGLE_CLIENT_ID": "1038318091306-55r5bhhp9di0ln64qg3otj0hjqk4hg29.apps.googleusercontent.com"
   }
 }
