@@ -44,7 +44,7 @@ jobs:
           python -m modal deploy modal/video_dance_service.py
 
       - name: Deploy to Modal Cloud GPU (Secondary: memory1024)
-        if: ${{ secrets.MODAL_TOKEN_ID_SECONDARY != '' }}
+        continue-on-error: true
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID_SECONDARY }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET_SECONDARY }}
