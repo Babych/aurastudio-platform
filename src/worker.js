@@ -41,8 +41,8 @@ const MODAL_PHOTO_ENDPOINTS = [
 ];
 
 const MODAL_VIDEO_ENDPOINTS = [
-  "https://memory1024--aurastudio-video-dance-service-videodanceengine-api-dance.modal.run",
-  "https://dmytrobbch--aurastudio-video-dance-service-videodanceengine-api-dance.modal.run"
+  "https://dmytrobbch--aurastudio-video-dance-service-videodanceeng-753eb3.modal.run",
+  "https://memory1024--aurastudio-video-dance-service-videodanceeng-753eb3.modal.run"
 ];
 
 // Helper: Call Modal with automatic account failover
@@ -91,6 +91,8 @@ async function uploadToR2(bucket, key, base64Data) {
 
 // In-memory / D1 auth session store for Telegram deep link login
 const authSessions = new Map();
+// In-memory user state store for Telegram interactive flows (Dance & Presets)
+const tgUserSessions = new Map();
 
 export default {
   async fetch(request, env, ctx) {
@@ -1210,7 +1212,7 @@ export default {
             return jsonResponse({ ok: true });
           }
 
-          // Handle Preset Generation from message photo
+          // Handle Preset Generation from message photo or session
           if (data.startsWith("preset_")) {
             const presetKey = data.replace("preset_", "");
             const presetPrompts = {
@@ -1226,15 +1228,17 @@ export default {
 
             const prompt = presetPrompts[presetKey] || "enhance photo to studio magazine portrait";
             
-            // Get original photo from replied message
-            const photos = cb.message?.photo;
-            if (photos && photos.length > 0) {
-              const bestPhoto = photos[photos.length - 1];
+            const session = tgUserSessions.get(chatId) || {};
+            const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
+                                cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id ||
+                                session.lastPhotoFileId;
+
+            if (photoFileId) {
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${presetKey.toUpperCase()})...*\n\n_Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)_`);
 
               ctx.waitUntil((async () => {
                 try {
-                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
                   const fileData = await fileRes.json();
                   if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
 
@@ -1268,11 +1272,19 @@ export default {
                   await sendTgMessage(chatId, "⚠️ Помилка генерації: " + err.message);
                 }
               })());
+            } else {
+              session.pendingAction = "preset";
+              session.presetKey = presetKey;
+              session.prompt = prompt;
+              session.timestamp = Date.now();
+              tgUserSessions.set(chatId, session);
+
+              await sendTgMessage(chatId, `✅ Обрано стиль *${presetKey.toUpperCase()}*!\n\n📸 Тепер надішліть сюди своє селфі або фото для трансформації.`);
             }
             return jsonResponse({ ok: true });
           }
 
-          // Handle Dance Video Generation from message photo
+          // Handle Dance Video Generation from message photo or session
           if (data.startsWith("dance_")) {
             const templateId = data.replace("dance_", "");
             const danceNames = {
@@ -1283,14 +1295,17 @@ export default {
             };
             const danceName = danceNames[templateId] || "TikTok Dance";
 
-            const photos = cb.message?.photo;
-            if (photos && photos.length > 0) {
-              const bestPhoto = photos[photos.length - 1];
+            const session = tgUserSessions.get(chatId) || {};
+            const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
+                                cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id ||
+                                session.lastPhotoFileId;
+
+            if (photoFileId) {
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
 
               ctx.waitUntil((async () => {
                 try {
-                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
                   const fileData = await fileRes.json();
                   if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
 
@@ -1325,6 +1340,12 @@ export default {
                 }
               })());
             } else {
+              session.pendingAction = "dance";
+              session.templateId = templateId;
+              session.danceName = danceName;
+              session.timestamp = Date.now();
+              tgUserSessions.set(chatId, session);
+
               await sendTgMessage(chatId, `✅ Обрано стиль *${danceName}*!\n\n📸 Тепер надішліть сюди фото людини (бажано по пояс або в повний зріст), щоб згенерувати танець.`);
             }
             return jsonResponse({ ok: true });
@@ -1464,8 +1485,106 @@ export default {
 
           // Handle Photo Upload in Telegram
           if (photos && photos.length > 0) {
+            const bestPhoto = photos[photos.length - 1];
+            const session = tgUserSessions.get(chatId) || {};
+            session.lastPhotoFileId = bestPhoto.file_id;
+            session.lastPhotoTime = Date.now();
+            tgUserSessions.set(chatId, session);
+
             const caption = update.message.caption || "";
             const isDanceCaption = caption.toLowerCase().includes("танець") || caption.toLowerCase().includes("dance") || caption.startsWith("/dance");
+
+            // 1. If user previously selected a Dance style:
+            if (session.pendingAction === "dance") {
+              const templateId = session.templateId || "viral_house_shuffle";
+              const danceName = session.danceName || "TikTok Dance";
+              delete session.pendingAction;
+              tgUserSessions.set(chatId, session);
+
+              await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
+              ctx.waitUntil((async () => {
+                try {
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                  const fileData = await fileRes.json();
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+
+                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+                  const photoBuffer = await photoBlobRes.arrayBuffer();
+                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+
+                  const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
+                    image_base64: photoBase64,
+                    dance_template_id: templateId,
+                    audio_sync: true,
+                    fps: 24,
+                    height: 768,
+                    width: 512
+                  });
+
+                  if (mData.status === "success" && mData.result_video_base64) {
+                    await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *${danceName}*\nДвигун: AuraDance 2.5 DiT`, {
+                      reply_markup: {
+                        inline_keyboard: [
+                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
+                        ]
+                      }
+                    });
+                  } else {
+                    await sendTgMessage(chatId, "⚠️ Не вдалося створити відео. Спробуйте інше фото (бажано в повний зріст або по пояс).");
+                  }
+                } catch (err) {
+                  logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
+                  await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
+                }
+              })());
+              return jsonResponse({ ok: true });
+            }
+
+            // 2. If user previously selected a Preset:
+            if (session.pendingAction === "preset") {
+              const presetKey = session.presetKey || "linkedin";
+              const prompt = session.prompt || "enhance photo to studio magazine portrait";
+              delete session.pendingAction;
+              tgUserSessions.set(chatId, session);
+
+              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${presetKey.toUpperCase()})...*\n\n_Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)_`);
+              ctx.waitUntil((async () => {
+                try {
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                  const fileData = await fileRes.json();
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+
+                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+                  const photoBuffer = await photoBlobRes.arrayBuffer();
+                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+
+                  const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+                    image_base64: photoBase64,
+                    prompt: prompt,
+                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+                    steps: 22,
+                    cfg: 1.95,
+                    seed: 888424
+                  });
+
+                  if (mData.status === "success" && mData.result_base64) {
+                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${presetKey.toUpperCase()}*\nДвигун: Qwen 2.5 DiT 20B`, {
+                      reply_markup: {
+                        inline_keyboard: [
+                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
+                        ]
+                      }
+                    });
+                  } else {
+                    await sendTgMessage(chatId, "⚠️ Не вдалося створити фото. Спробуйте інший промпт.");
+                  }
+                } catch (err) {
+                  logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                  await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
+                }
+              })());
+              return jsonResponse({ ok: true });
+            }
 
             if (isDanceCaption) {
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець за вашим запитом...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
