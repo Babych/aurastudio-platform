@@ -1294,6 +1294,7 @@ export default {
         }
         return jsonResponse({ ok: true });
       } catch (e) {
+        logCriticalError(env, ctx, "telegram_webhook", e.message, null);
         return jsonResponse({ ok: false, error: e.message });
       }
     }
