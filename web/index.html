@@ -82,12 +82,18 @@
 
             <!-- Nav Actions & Modals -->
             <div class="flex items-center gap-2 sm:gap-3">
+                <a href="https://t.me/AuraStudioAiBot" target="_blank" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800/80 rounded-xl transition flex items-center gap-1.5" title="Open Telegram Bot">
+                    <i data-lucide="send" class="w-3.5 h-3.5 text-[#24A1DE]"></i>
+                    <span class="hidden sm:inline">Telegram Bot</span>
+                </a>
+
                 <button onclick="openCatalogModal()" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800/80 rounded-xl transition flex items-center gap-1.5">
                     <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-purple-400"></i>
                     <span data-i18n="nav_catalog">Styles</span>
                 </button>
 
-                <a href="/dashboard" target="_blank" class="hidden md:flex px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-purple-300 hover:bg-gray-800/80 rounded-xl transition items-center gap-1.5">
+                <!-- Admin Only Telemetry Link -->
+                <a href="/dashboard" id="telemetryNavBtn" target="_blank" class="hidden px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-purple-300 hover:bg-gray-800/80 rounded-xl transition items-center gap-1.5">
                     <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-400"></i>
                     <span data-i18n="nav_telemetry">Live Stats</span>
                 </a>
@@ -135,18 +141,31 @@
         <div class="w-full relative">
             <div id="dropZone" class="glass-input w-full rounded-3xl p-4 sm:p-5 shadow-2xl transition-all relative border border-gray-800">
                 
-                <!-- Attached Image Tag / Thumbnail Pill -->
-                <div id="attachedImagePreviewBox" class="hidden mb-3 items-center gap-3 p-2 rounded-2xl bg-gray-900/80 border border-purple-500/30 w-fit max-w-full">
-                    <div class="relative w-14 h-14 rounded-xl overflow-hidden bg-black/50 shrink-0 border border-gray-700">
-                        <img id="attachedThumbImg" src="" alt="Attached" class="w-full h-full object-cover">
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <!-- Attached Image Tag / Thumbnail Pill -->
+                    <div id="attachedImagePreviewBox" class="hidden items-center gap-3 p-2 rounded-2xl bg-gray-900/80 border border-purple-500/30 w-fit max-w-full">
+                        <div class="relative w-12 h-12 rounded-xl overflow-hidden bg-black/50 shrink-0 border border-gray-700">
+                            <img id="attachedThumbImg" src="" alt="Attached" class="w-full h-full object-cover">
+                        </div>
+                        <div class="text-left pr-2 overflow-hidden">
+                            <p class="text-xs font-semibold text-purple-300 truncate" id="attachedFileName">photo.jpg</p>
+                            <p class="text-[10px] text-gray-400" data-i18n="msg_photo_ready">Photo attached & ready</p>
+                        </div>
+                        <button onclick="clearAttachedImage()" class="p-1 rounded-lg text-gray-400 hover:text-red-400 hover:bg-gray-800 transition" title="Remove photo">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
                     </div>
-                    <div class="text-left pr-2 overflow-hidden">
-                        <p class="text-xs font-semibold text-purple-300 truncate" id="attachedFileName">photo.jpg</p>
-                        <p class="text-[10px] text-gray-400" data-i18n="msg_photo_ready">Photo attached & ready</p>
+
+                    <!-- Active Preset Badge (with Close Button and Esc support) -->
+                    <div id="activePresetPill" class="hidden items-center gap-2 px-3 py-2 rounded-2xl bg-purple-600/20 border border-purple-500/40 text-xs text-purple-300 w-fit max-w-full">
+                        <div class="flex items-center gap-1.5">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-purple-400"></i>
+                            <span class="font-semibold" id="activePresetPillLabel">Preset</span>
+                        </div>
+                        <button onclick="clearActivePreset()" class="p-0.5 rounded-lg text-gray-400 hover:text-white hover:bg-purple-500/30 transition ml-1" title="Remove preset (Esc)">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
                     </div>
-                    <button onclick="clearAttachedImage()" class="p-1 rounded-lg text-gray-400 hover:text-red-400 hover:bg-gray-800 transition" title="Remove photo">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
                 </div>
 
                 <!-- Spacious Multi-line Auto-expanding Textarea -->
@@ -363,7 +382,7 @@
             <div class="flex items-center gap-4 text-gray-400">
                 <button onclick="openCatalogModal()" class="hover:text-purple-400 transition">Style Catalog</button>
                 <button onclick="openFeedbackModal()" class="hover:text-purple-400 transition">Leave Review</button>
-                <a href="/dashboard" target="_blank" class="hover:text-cyan-400 transition">Telemetry</a>
+                <a href="/dashboard" id="telemetryFooterBtn" target="_blank" class="hidden hover:text-cyan-400 transition">Telemetry</a>
             </div>
         </div>
     </footer>
@@ -669,6 +688,36 @@
             const userBadge = document.getElementById('userBadge');
             const nameLabel = document.getElementById('userNameLabel');
             const avatarLetter = document.getElementById('userAvatarLetter');
+            const telemetryNavBtn = document.getElementById('telemetryNavBtn');
+            const telemetryFooterBtn = document.getElementById('telemetryFooterBtn');
+
+            const isAdmin = currentUser && (
+                currentUser.is_admin === true || 
+                currentUser.role === 'admin' ||
+                currentUser.email?.includes('admin') ||
+                currentUser.username === 'Dmytro' ||
+                localStorage.getItem('aurastudio_admin_token')
+            );
+
+            if (telemetryNavBtn) {
+                if (isAdmin) {
+                    telemetryNavBtn.classList.remove('hidden');
+                    telemetryNavBtn.classList.add('flex');
+                } else {
+                    telemetryNavBtn.classList.add('hidden');
+                    telemetryNavBtn.classList.remove('flex');
+                }
+            }
+
+            if (telemetryFooterBtn) {
+                if (isAdmin) {
+                    telemetryFooterBtn.classList.remove('hidden');
+                    telemetryFooterBtn.classList.add('inline-block');
+                } else {
+                    telemetryFooterBtn.classList.add('hidden');
+                    telemetryFooterBtn.classList.remove('inline-block');
+                }
+            }
 
             if (currentUser && currentUser.id) {
                 loginBtn.classList.add('hidden');
@@ -722,10 +771,37 @@
                 e.preventDefault();
                 hideSlashMenu();
                 triggerGeneration();
-            } else if (e.key === 'Escape') {
-                hideSlashMenu();
             }
         }
+
+        // Global Escape Listener: Closes modals, slash menu, or active preset
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const slashMenu = document.getElementById('slashMenu');
+                if (slashMenu && !slashMenu.classList.contains('hidden')) {
+                    hideSlashMenu();
+                    return;
+                }
+
+                // Close any open modals
+                const modals = ['authModal', 'paywallModal', 'catalogModal', 'userModal', 'feedbackModal', 'fullImageModal'];
+                let modalClosed = false;
+                for (const modalId of modals) {
+                    const el = document.getElementById(modalId);
+                    if (el && !el.classList.contains('hidden')) {
+                        el.classList.add('hidden');
+                        el.classList.remove('flex');
+                        modalClosed = true;
+                    }
+                }
+                if (modalClosed) return;
+
+                // If a preset is active, clear it
+                if (selectedPresetId) {
+                    clearActivePreset();
+                }
+            }
+        });
 
         function showSlashMenu() {
             document.getElementById('slashMenu').classList.remove('hidden');
@@ -744,8 +820,32 @@
             selectedPresetId = presetId;
             const input = document.getElementById('mainPromptInput');
             input.value = promptInstruction;
+            
+            // Show active preset badge with close button
+            const pill = document.getElementById('activePresetPill');
+            const pillLabel = document.getElementById('activePresetPillLabel');
+            if (pill && pillLabel) {
+                pillLabel.innerText = commandTag;
+                pill.classList.remove('hidden');
+                pill.classList.add('flex');
+                if (window.lucide) lucide.createIcons();
+            }
+
             hideSlashMenu();
             input.focus();
+        }
+
+        function clearActivePreset() {
+            selectedPresetId = null;
+            const pill = document.getElementById('activePresetPill');
+            if (pill) {
+                pill.classList.add('hidden');
+                pill.classList.remove('flex');
+            }
+            const input = document.getElementById('mainPromptInput');
+            if (input) {
+                input.value = '';
+            }
         }
 
         // Attachment & Drag and Drop Handling
