@@ -27,7 +27,7 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install -g wrangler
-          pip install modal
+          pip install modal pydantic fastapi
 
       - name: "Deploy to Cloudflare Workers and Pages"
         env:
