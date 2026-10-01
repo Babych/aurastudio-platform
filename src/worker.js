@@ -34,6 +34,24 @@ function logCriticalError(env, ctx, context, errorMsg, userId = null, details = 
   }
 }
 
+// Helper: Upload Base64 to R2 Storage
+async function uploadToR2(bucket, key, base64Data) {
+  if (!bucket) return null;
+  const b64 = base64Data.replace(/^data:(image|video)\/\w+;base64,/, "");
+  const byteString = atob(b64);
+  const bytes = new Uint8Array(byteString.length);
+  for (let i = 0; i < byteString.length; i++) {
+    bytes[i] = byteString.charCodeAt(i);
+  }
+  
+  await bucket.put(key, bytes, {
+    httpMetadata: {
+      contentType: key.endsWith('.mp4') ? 'video/mp4' : (key.endsWith('.png') ? 'image/png' : 'image/jpeg')
+    }
+  });
+  return `/media/${key}`;
+}
+
 // In-memory / D1 auth session store for Telegram deep link login
 const authSessions = new Map();
 
@@ -592,8 +610,25 @@ export default {
                   WHERE id = ?
                 `).bind(user_id).run();
 
-                const inThumb = image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`;
-                const outThumb = resultDataUri;
+                let inThumb = image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`;
+                let outThumb = resultDataUri;
+
+                // Save to R2 if available
+                if (env.STORAGE) {
+                  const inExt = inThumb.includes("image/png") ? ".png" : ".jpg";
+                  const outExt = outThumb.includes("image/png") ? ".png" : ".jpg";
+                  
+                  // Non-blocking upload via ctx.waitUntil or await directly?
+                  // Doing await directly ensures DB gets the clean URL, but takes extra 100ms
+                  const r2InUrl = await uploadToR2(env.STORAGE, `in_${taskId}${inExt}`, inThumb);
+                  const r2OutUrl = await uploadToR2(env.STORAGE, `out_${taskId}${outExt}`, outThumb);
+                  
+                  if (r2InUrl) inThumb = url.origin + r2InUrl;
+                  if (r2OutUrl) outThumb = url.origin + r2OutUrl;
+                  
+                  // Overwrite resultDataUri so the frontend gets the R2 URL instead of huge base64
+                  resultDataUri = outThumb;
+                }
 
                 await env.DB.prepare(`
                   INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, output_image_url, status, duration_seconds, is_shared, share_token)
@@ -704,13 +739,21 @@ export default {
             throw new Error(lastErrText || "Video generation failed on remote GPU.");
           }
 
+          // Upload generated video to R2 if available
+          if (env.STORAGE && resultVideoUri.length > 1000) {
+            const r2VideoUrl = await uploadToR2(env.STORAGE, `video_${taskId}.mp4`, resultVideoUri);
+            if (r2VideoUrl) {
+              resultVideoUri = url.origin + r2VideoUrl;
+            }
+          }
+
           if (env.DB) {
             ctx.waitUntil((async () => {
               try {
                 await env.DB.prepare(`
                   INSERT INTO telemetry_events (event_type, source, user_id, duration_seconds, usd_amount, details)
                   VALUES ('VIDEO_DANCE_GENERATION', 'web', ?, ?, 0.05, ?)
-                `).bind(user_id, parseFloat(dur), JSON.stringify({ template: dance_template_id, task_id: taskId })).run();
+                `).bind(user_id, parseFloat(dur), JSON.stringify({ template: dance_template_id, task_id: taskId, video_url: resultVideoUri })).run();
               } catch (e) {
                 console.error("Video telemetry error:", e);
               }
@@ -1297,6 +1340,26 @@ export default {
         logCriticalError(env, ctx, "telegram_webhook", e.message, null);
         return jsonResponse({ ok: false, error: e.message });
       }
+    }
+
+    // =========================================================================
+    // 10.5 MEDIA ROUTER: Serve R2 assets (Photos & Videos)
+    // =========================================================================
+    if (url.pathname.startsWith("/media/") && env.STORAGE) {
+      const key = url.pathname.replace("/media/", "");
+      const object = await env.STORAGE.get(key);
+      if (!object) return new Response("Not Found", { status: 404 });
+      
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set("etag", object.httpEtag);
+      headers.set("Cache-Control", "public, max-age=31536000");
+      
+      if (key.endsWith(".mp4")) headers.set("Content-Type", "video/mp4");
+      else if (key.endsWith(".png")) headers.set("Content-Type", "image/png");
+      else headers.set("Content-Type", "image/jpeg");
+
+      return new Response(object.body, { headers });
     }
 
     // =========================================================================
