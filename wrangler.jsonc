@@ -14,12 +14,12 @@
       "database_id": "a9e333ed-e98d-4477-92ae-d3d65ecd5b4c"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "STORAGE",
-      "bucket_name": "aurastudio-media"
-    }
-  ],
+  // "r2_buckets": [
+  //   {
+  //     "binding": "STORAGE",
+  //     "bucket_name": "aurastudio-media"
+  //   }
+  // ],
   "vars": {
     "MODAL_ENDPOINT_URL": "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
     "ENVIRONMENT": "production",
