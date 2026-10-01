@@ -1414,6 +1414,52 @@ export default {
             return jsonResponse({ ok: true });
           }
 
+          // Handle /balance command
+          if (text === "/balance" || text.startsWith("/balance")) {
+            let balance = 0;
+            let subStatus = "Немає активної підписки";
+            if (env.DB) {
+              const u = await env.DB.prepare("SELECT stars_balance FROM users WHERE id = ?").bind(userId).first();
+              if (u && u.stars_balance !== undefined) balance = u.stars_balance;
+              const sub = await env.DB.prepare("SELECT plan_tier, status FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first();
+              if (sub) subStatus = `Активна (${sub.plan_tier.toUpperCase()})`;
+            }
+
+            await sendTgMessage(chatId, `⭐️ *Ваш баланс та підписка:*\n\n• ⭐️ *Баланс Stars:* ${balance} XTR\n• 📦 *Статус підписки:* ${subStatus}\n\n_Ви можете використовувати баланс для генерації фото (10 Stars) та TikTok танців (40 Stars) на веб-сайті або в боті._`, {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "⭐️ Купити Starter (250 Stars)", callback_data: "buy_starter" },
+                    { text: "⭐️ Купити Unlimited (500 Stars)", callback_data: "buy_unlimited" }
+                  ],
+                  [
+                    { text: "🌐 Перейти на AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }
+                  ]
+                ]
+              }
+            });
+            return jsonResponse({ ok: true });
+          }
+
+          // Handle /help command
+          if (text === "/help" || text.startsWith("/help")) {
+            const helpText = "ℹ️ *AuraStudio AI — Довідка та команди:*\n\n" +
+              "🕺 */dance* — Створити вірусне танцювальне відео з фото\n" +
+              "🏠 */start* — Головне меню та відкриття Web App\n" +
+              "⭐️ */balance* — Перевірити баланс Telegram Stars та підписку\n\n" +
+              "📸 *Як створити фото:* просто надішліть будь-яке фото сюди та оберіть стиль (LinkedIn, Old Money, Blonde, тощо) або додайте підпис до фото.\n\n" +
+              "🌐 *Веб-версія:* https://aurastudio-ai.memory1024.workers.dev";
+            await sendTgMessage(chatId, helpText, {
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: "🕺 Створити TikTok Танець", callback_data: "dance_viral_house_shuffle" }],
+                  [{ text: "✨ Відкрити Web Studio", web_app: { url: "https://aurastudio-ai.memory1024.workers.dev" } }]
+                ]
+              }
+            });
+            return jsonResponse({ ok: true });
+          }
+
           // Handle Photo Upload in Telegram
           if (photos && photos.length > 0) {
             const caption = update.message.caption || "";
@@ -1521,14 +1567,15 @@ export default {
           }
 
           // Standard /start or greeting
-          const welcomeText = "✨ *Ласкаво просимо до AuraStudio AI!* ✨\n\n🎨 *Студійні портрети, ділові фото та стильні луки за 30 секунд!*\n\n• 📸 *LinkedIn Pro Headshot*\n• 👗 *Old Money Aesthetic*\n• 🌴 *Bali Sunset Travel*\n\n👇 *Надішліть фото сюди або відкрийте Web App:*";
+          const welcomeText = "✨ *Ласкаво просимо до AuraStudio AI!* ✨\n\n🎨 *Студійні портрети, TikTok танці та стильні луки за 30 секунд!*\n\n• 🕺 *TikTok Dance Studio (Відео)*\n• 📸 *LinkedIn Pro Headshot*\n• 👗 *Old Money Aesthetic*\n• 🌴 *Bali Sunset Travel*\n\n👇 *Оберіть дію або надішліть фото:*";
           const webUrl = "https://aurastudio-ai.memory1024.workers.dev";
           await sendTgMessage(chatId, welcomeText, {
             reply_markup: {
               inline_keyboard: [
+                [{ text: "🕺 Створити TikTok Танець (Відео)", callback_data: "dance_viral_house_shuffle" }],
                 [{ text: "✨ Відкрити AI Studio (Web App)", web_app: { url: webUrl } }],
-                [{ text: "🌐 Відкрити веб-сайт", url: webUrl }],
-                [{ text: "⭐ Купити підписку (Stars)", callback_data: "buy_starter" }]
+                [{ text: "⭐️ Мій Баланс Stars / Підписка", callback_data: "buy_starter" }],
+                [{ text: "🌐 Відкрити веб-сайт", url: webUrl }]
               ]
             }
           });
