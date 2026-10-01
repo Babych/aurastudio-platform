@@ -94,6 +94,22 @@ const authSessions = new Map();
 // In-memory user state store for Telegram interactive flows (Dance & Presets)
 const tgUserSessions = new Map();
 
+// Helper: Check if user has administrative privileges
+function isUserAdmin(userId, username, email, env) {
+  if (!userId) return false;
+  const adminIds = ["tg_1359272262", "google_112903967526802503571", "test_user"];
+  const adminUsernames = ["lame618", "memory1024", "dmytrobbch"];
+  const cleanUid = String(userId).toLowerCase();
+  const cleanUname = String(username || "").toLowerCase();
+  const cleanEmail = String(email || "").toLowerCase();
+
+  if (adminIds.some(id => cleanUid.includes(id.toLowerCase()))) return true;
+  if (adminUsernames.some(u => cleanUname === u || cleanUid.includes(u))) return true;
+  if (cleanEmail && (cleanEmail.includes("babych") || cleanEmail.includes("memory1024"))) return true;
+  if (env.ADMIN_USER_IDS && env.ADMIN_USER_IDS.split(",").some(id => cleanUid.includes(id.trim().toLowerCase()))) return true;
+  return false;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -112,6 +128,7 @@ export default {
         google_client_id: env.GOOGLE_CLIENT_ID || "",
         telegram_bot_username: env.TELEGRAM_BOT_USERNAME || "thing_intellect_bot",
         telegram_only_payments: env.TELEGRAM_ONLY_PAYMENTS !== "false",
+        enable_dance_studio: env.ENABLE_DANCE_STUDIO || "admin_only",
         environment: env.ENVIRONMENT || "production"
       });
     }
@@ -735,6 +752,15 @@ export default {
               status: "auth_required",
               message: "Please sign in to generate AI TikTok Dance Reels."
             }, 401);
+          }
+
+          // Admin Feature Flag Gate: Only allow admins when ENABLE_DANCE_STUDIO is admin_only
+          const danceFlag = env.ENABLE_DANCE_STUDIO || "admin_only";
+          if (danceFlag === "admin_only" && !isUserAdmin(user_id, body.user_name, body.user_email, env)) {
+            return jsonResponse({
+              status: "locked",
+              message: "🔒 TikTok Dance Studio is currently in closed testing for administrators. It will be released for all users soon!"
+            }, 403);
           }
 
           // Check Subscription or Stars Balance in D1 (40 Stars per Dance Video)
@@ -1414,10 +1440,23 @@ export default {
           }
 
           const lowerText = text.trim().toLowerCase();
+          const isAdmin = isUserAdmin(userId, user.username, null, env);
+          const danceFlag = env.ENABLE_DANCE_STUDIO || "admin_only";
 
           // Handle /dance command or plain text "dance" / "танець"
           if (lowerText === "/dance" || lowerText.startsWith("/dance") || lowerText === "dance" || lowerText === "танець" || lowerText.includes("танець") || lowerText.includes("dance")) {
-            await sendTgMessage(chatId, "🕺 *TikTok Dance & Reels Studio*\n\nОберіть стиль вірусного танцю і надішліть фото людини (бажано по пояс або в повний зріст):", {
+            if (danceFlag === "admin_only" && !isAdmin) {
+              await sendTgMessage(chatId, "🔒 *Функція TikTok Dance Studio зараз на етапі закритого тестування для адміністраторів.*\n\nНезабаром вона стане доступною для всіх! Спробуйте інші стилі студії (LinkedIn Pro, Old Money, Blonde).", {
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: "✨ Відкрити Студію Фото", web_app: { url: "https://aurastudio-ai.memory1024.workers.dev" } }]
+                  ]
+                }
+              });
+              return jsonResponse({ ok: true });
+            }
+
+            await sendTgMessage(chatId, "🕺 *TikTok Dance & Reels Studio (Admin Preview)*\n\nОберіть стиль вірусного танцю і надішліть фото людини (бажано по пояс або в повний зріст):", {
               reply_markup: {
                 inline_keyboard: [
                   [
@@ -1688,16 +1727,19 @@ export default {
           }
 
           // Standard /start or greeting
-          const welcomeText = "✨ *Ласкаво просимо до AuraStudio AI!* ✨\n\n🎨 *Студійні портрети, TikTok танці та стильні луки за 30 секунд!*\n\n• 🕺 *TikTok Dance Studio (Відео)*\n• 📸 *LinkedIn Pro Headshot*\n• 👗 *Old Money Aesthetic*\n• 🌴 *Bali Sunset Travel*\n\n👇 *Оберіть дію або надішліть фото:*";
+          const welcomeText = "✨ *Ласкаво просимо до AuraStudio AI!* ✨\n\n🎨 *Студійні портрети, ділові фото та стильні луки за 30 секунд!*\n\n• 📸 *LinkedIn Pro Headshot*\n• 👗 *Old Money Aesthetic*\n• 🌴 *Bali Sunset Travel*\n\n👇 *Оберіть дію або надішліть фото:*";
           const webUrl = "https://aurastudio-ai.memory1024.workers.dev";
+          const welcomeButtons = [];
+          if (isAdmin || danceFlag !== "admin_only") {
+            welcomeButtons.push([{ text: "🕺 TikTok Dance Studio (Admin)", callback_data: "dance_viral_house_shuffle" }]);
+          }
+          welcomeButtons.push([{ text: "✨ Відкрити AI Studio (Web App)", web_app: { url: webUrl } }]);
+          welcomeButtons.push([{ text: "⭐️ Мій Баланс Stars / Підписка", callback_data: "buy_starter" }]);
+          welcomeButtons.push([{ text: "🌐 Відкрити веб-сайт", url: webUrl }]);
+
           await sendTgMessage(chatId, welcomeText, {
             reply_markup: {
-              inline_keyboard: [
-                [{ text: "🕺 Створити TikTok Танець (Відео)", callback_data: "dance_viral_house_shuffle" }],
-                [{ text: "✨ Відкрити AI Studio (Web App)", web_app: { url: webUrl } }],
-                [{ text: "⭐️ Мій Баланс Stars / Підписка", callback_data: "buy_starter" }],
-                [{ text: "🌐 Відкрити веб-сайт", url: webUrl }]
-              ]
+              inline_keyboard: welcomeButtons
             }
           });
         }

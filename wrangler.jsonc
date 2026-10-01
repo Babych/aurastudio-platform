@@ -22,6 +22,7 @@
   // ],
   "vars": {
     "TELEGRAM_ONLY_PAYMENTS": "true",
+    "ENABLE_DANCE_STUDIO": "admin_only",
     "MODAL_ENDPOINT_URL": "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
     "ENVIRONMENT": "production",
     "TELEGRAM_BOT_USERNAME": "thing_intellect_bot",

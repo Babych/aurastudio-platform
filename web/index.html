@@ -863,19 +863,23 @@
             try {
                 const res = await fetch('/api/config');
                 const data = await res.json();
-                if (data.status === 'success' && data.google_client_id) {
-                    const el = document.getElementById('g_id_onload');
-                    if (el) el.setAttribute('data-client_id', data.google_client_id);
-                    if (window.google && window.google.accounts && window.google.accounts.id) {
-                        window.google.accounts.id.initialize({
-                            client_id: data.google_client_id,
-                            callback: handleGoogleCredentialResponse
-                        });
-                        window.google.accounts.id.renderButton(
-                            document.getElementById('googleAuthContainer'),
-                            { theme: 'filled_black', size: 'large', width: 280 }
-                        );
+                if (data.status === 'success') {
+                    window.aurastudioConfig = data;
+                    if (data.google_client_id) {
+                        const el = document.getElementById('g_id_onload');
+                        if (el) el.setAttribute('data-client_id', data.google_client_id);
+                        if (window.google && window.google.accounts && window.google.accounts.id) {
+                            window.google.accounts.id.initialize({
+                                client_id: data.google_client_id,
+                                callback: handleGoogleCredentialResponse
+                            });
+                            window.google.accounts.id.renderButton(
+                                document.getElementById('googleAuthContainer'),
+                                { theme: 'filled_black', size: 'large', width: 280 }
+                            );
+                        }
                     }
+                    checkUserAuthUI();
                 }
             } catch(e) {}
         }
@@ -891,10 +895,25 @@
             const isAdmin = currentUser && (
                 currentUser.is_admin === true || 
                 currentUser.role === 'admin' ||
-                currentUser.email?.includes('admin') ||
+                currentUser.email?.includes('babych') ||
+                currentUser.email?.includes('memory1024') ||
+                currentUser.username === 'lame618' ||
+                currentUser.username === 'memory1024' ||
                 currentUser.username === 'Dmytro' ||
+                currentUser.id === 'tg_1359272262' ||
+                currentUser.id?.includes('112903967526802503571') ||
                 localStorage.getItem('aurastudio_admin_token')
             );
+
+            // Handle Dance Mode Tab Visibility for Admin Feature Flag
+            const modeDanceBtn = document.getElementById('modeDanceBtn');
+            if (modeDanceBtn) {
+                if (window.aurastudioConfig?.enable_dance_studio === 'admin_only' && !isAdmin) {
+                    modeDanceBtn.classList.add('hidden');
+                } else {
+                    modeDanceBtn.classList.remove('hidden');
+                }
+            }
 
             if (telemetryNavBtn) {
                 if (isAdmin) {
