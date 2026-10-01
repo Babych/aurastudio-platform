@@ -604,8 +604,8 @@ export default {
             throw new Error(modalData.message || "Model failed to return edited image");
           }
 
-          const dur = ((Date.now() - t0) / 1000).toFixed(1);
-          const resultDataUri = modalData.result_base64.startsWith("data:")
+          let dur = modalData.duration_seconds || ((Date.now() - t0) / 1000).toFixed(1);
+          let resultDataUri = modalData.result_base64.startsWith("data:")
             ? modalData.result_base64
             : `data:image/png;base64,${modalData.result_base64}`;
 
