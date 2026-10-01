@@ -1072,7 +1072,10 @@ export default {
               old_money: "change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers",
               blonde: "change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights",
               bali: "change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting",
-              cyberpunk: "change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing reflections"
+              cyberpunk: "change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing reflections",
+              muppet: "convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo",
+              goofy3d: "change style to funny 3D animated caricature character with exaggerated goofy facial expression and bright vibrant colors",
+              retro90s: "transform into unhinged 90s meme character, wild spiky mohawk hair, retro vintage clothing, funny candid expression"
             };
 
             const prompt = presetPrompts[presetKey] || "enhance photo to studio magazine portrait";
@@ -1223,7 +1226,7 @@ export default {
               })());
             } else {
               // Offer Preset Selection Buttons
-              await sendTgMessage(chatId, `📸 *Фото отримано!* Оберіть бажаний стиль для трансформації:`, {
+              await sendTgMessage(chatId, `📸 *Фото отримано!* Оберіть бажаний стиль або вірусного персонажа для трансформації:`, {
                 reply_markup: {
                   inline_keyboard: [
                     [
@@ -1231,11 +1234,15 @@ export default {
                       { text: "🍸 Old Money", callback_data: "preset_old_money" }
                     ],
                     [
+                      { text: "🎭 Muppet Meme Guy", callback_data: "preset_muppet" },
+                      { text: "🤪 3D Goofy Caricature", callback_data: "preset_goofy3d" }
+                    ],
+                    [
                       { text: "👱‍♀️ Blonde Restyle", callback_data: "preset_blonde" },
                       { text: "🌴 Bali Sunset", callback_data: "preset_bali" }
                     ],
                     [
-                      { text: "🌆 Cyberpunk Noir", callback_data: "preset_cyberpunk" },
+                      { text: "🕺 TikTok Dance Studio", url: "https://aurastudio-ai.memory1024.workers.dev" },
                       { text: "⭐ Отримати Pro", callback_data: "buy_starter" }
                     ]
                   ]
