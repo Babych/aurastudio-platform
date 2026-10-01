@@ -9,7 +9,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy to Cloudflare Edge
+    name: Deploy to Cloudflare Edge & Modal GPU
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -19,24 +19,23 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Wrangler
-        run: npm install -g wrangler
-
-      - name: Deploy to Cloudflare Workers / Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-
-      - name: Setup Python for Modal
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          
-      - name: Install Modal
-        run: pip install modal
-        
+
+      - name: Install Dependencies
+        run: |
+          npm install -g wrangler
+          pip install modal
+
+      - name: Deploy to Cloudflare Workers & Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler deploy
+
       - name: Deploy to Modal Cloud GPU (Primary: dmytrobbch)
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
