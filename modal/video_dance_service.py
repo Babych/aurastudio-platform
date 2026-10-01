@@ -72,7 +72,7 @@ class DanceResponse(BaseModel):
     image=video_image,
     gpu="A10G",
     timeout=300,
-    scaledown_window=120
+    scaledown_window=45
 )
 class VideoDanceEngine:
     @modal.enter()
