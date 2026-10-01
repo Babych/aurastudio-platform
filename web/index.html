@@ -137,8 +137,21 @@
             </p>
         </div>
 
+        <!-- Studio Mode Switcher Tabs (Photo Restyle vs TikTok Dance & Reels) -->
+        <div class="flex items-center gap-2 p-1.5 rounded-2xl glass-card border border-purple-500/30 w-fit">
+            <button onclick="switchStudioMode('photo')" id="modePhotoBtn" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md shadow-purple-600/30">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                <span data-i18n="tab_photo_studio">Photo Studio</span>
+            </button>
+            <button onclick="switchStudioMode('dance')" id="modeDanceBtn" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white transition flex items-center gap-2">
+                <i data-lucide="video" class="w-3.5 h-3.5 text-pink-400"></i>
+                <span data-i18n="tab_dance_studio">TikTok Dance & Reels</span>
+                <span class="px-1.5 py-0.5 bg-pink-500/20 text-pink-300 text-[9px] font-extrabold rounded-full">HOT</span>
+            </button>
+        </div>
+
         <!-- Central Modern AI Prompt & Attachment Studio Box (Claude/GPT style) -->
-        <div class="w-full relative">
+        <div class="w-full relative" id="photoStudioBox">
             <div id="dropZone" class="glass-input w-full rounded-3xl p-4 sm:p-5 shadow-2xl transition-all relative border border-gray-800">
                 
                 <div class="flex flex-wrap items-center gap-2 mb-3">
@@ -293,6 +306,103 @@
             </div>
         </div>
 
+        <!-- Central TikTok Dance & Reels Video Studio Box -->
+        <div class="w-full relative hidden" id="danceStudioBox">
+            <div class="glass-input w-full rounded-3xl p-5 sm:p-6 shadow-2xl border border-pink-500/30 space-y-6">
+                
+                <div class="flex items-center justify-between border-b border-gray-800/80 pb-3">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center">
+                            <i data-lucide="video" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-white" data-i18n="dance_title">AI Character Dance Retargeting</h3>
+                            <p class="text-[11px] text-gray-400" data-i18n="dance_subtitle">Transform your photo into a viral TikTok dancing video with motion sync.</p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] bg-pink-500/20 border border-pink-500/30 text-pink-300 font-mono px-2 py-0.5 rounded-full font-bold">24 FPS • 9:16 Vertical</span>
+                </div>
+
+                <!-- Step 1: Character Photo Input -->
+                <div class="space-y-2">
+                    <label class="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                        <span class="w-5 h-5 rounded-full bg-purple-600/30 text-purple-300 text-[11px] font-bold flex items-center justify-center">1</span>
+                        <span data-i18n="dance_step1">Character / Face Photo</span>
+                    </label>
+
+                    <div class="flex items-center gap-3">
+                        <div id="danceThumbContainer" class="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-900 border border-gray-700 shrink-0 flex items-center justify-center">
+                            <img id="danceThumbImg" src="" class="hidden w-full h-full object-cover">
+                            <i data-lucide="user" id="danceThumbPlaceholder" class="w-6 h-6 text-gray-500"></i>
+                        </div>
+                        <div class="space-y-1 text-left flex-1">
+                            <input type="file" id="danceFileInput" accept="image/*" class="hidden" onchange="handleDanceFileInput(this.files[0])">
+                            <button onclick="document.getElementById('danceFileInput').click()" class="px-3.5 py-2 rounded-xl glass-card hover:bg-gray-800 text-xs font-semibold text-gray-200 transition flex items-center gap-1.5 border border-purple-500/30">
+                                <i data-lucide="upload" class="w-3.5 h-3.5 text-purple-400"></i>
+                                <span data-i18n="dance_upload_char">Choose Portrait Photo</span>
+                            </button>
+                            <p class="text-[10px] text-gray-500">Full body or half-body portrait works best for realistic motion.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Choose Viral Dance Motion Template -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                            <span class="w-5 h-5 rounded-full bg-pink-600/30 text-pink-300 text-[11px] font-bold flex items-center justify-center">2</span>
+                            <span data-i18n="dance_step2">Select Trending TikTok Dance</span>
+                        </label>
+                        <span class="text-[10px] text-gray-500">Audio Sync Included 🎵</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="danceTemplatesGrid">
+                        <!-- Template 1 -->
+                        <div onclick="selectDanceTemplate('viral_house_shuffle', this)" class="dance-template-card active glass-card rounded-2xl p-3 border-2 border-pink-500 text-left cursor-pointer transition hover:border-pink-400 group relative">
+                            <div class="text-xl mb-1">🕺</div>
+                            <h4 class="font-bold text-xs text-white group-hover:text-pink-300">House Shuffle</h4>
+                            <p class="text-[10px] text-gray-400">Fast rhythm & energetic footwork</p>
+                            <span class="absolute top-2 right-2 text-[9px] bg-pink-500 text-white font-extrabold px-1.5 rounded-full">VIRAL</span>
+                        </div>
+
+                        <!-- Template 2 -->
+                        <div onclick="selectDanceTemplate('tiktok_hiphop_groove', this)" class="dance-template-card glass-card rounded-2xl p-3 border border-gray-800 text-left cursor-pointer transition hover:border-pink-400 group">
+                            <div class="text-xl mb-1">💃</div>
+                            <h4 class="font-bold text-xs text-white group-hover:text-pink-300">Hip-Hop Groove</h4>
+                            <p class="text-[10px] text-gray-400">Urban body waves & beat drops</p>
+                        </div>
+
+                        <!-- Template 3 -->
+                        <div onclick="selectDanceTemplate('kpop_chorus_dance', this)" class="dance-template-card glass-card rounded-2xl p-3 border border-gray-800 text-left cursor-pointer transition hover:border-pink-400 group">
+                            <div class="text-xl mb-1">🌟</div>
+                            <h4 class="font-bold text-xs text-white group-hover:text-pink-300">K-Pop Chorus</h4>
+                            <p class="text-[10px] text-gray-400">Synchronized idol pop routine</p>
+                        </div>
+
+                        <!-- Template 4 -->
+                        <div onclick="selectDanceTemplate('samba_beach_rhythm', this)" class="dance-template-card glass-card rounded-2xl p-3 border border-gray-800 text-left cursor-pointer transition hover:border-pink-400 group">
+                            <div class="text-xl mb-1">🌴</div>
+                            <h4 class="font-bold text-xs text-white group-hover:text-pink-300">Samba Vibe</h4>
+                            <p class="text-[10px] text-gray-400">Tropical summer carnival dance</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Generation Controls -->
+                <div class="flex flex-wrap items-center justify-between pt-3 border-t border-gray-800/80 gap-3">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-300 select-none">
+                        <input type="checkbox" id="danceAudioSyncToggle" checked class="rounded border-gray-700 text-pink-600 focus:ring-pink-500">
+                        <span data-i18n="dance_audio_sync">Auto-sync TikTok trending music track</span>
+                    </label>
+
+                    <button onclick="triggerDanceGeneration()" id="generateDanceBtn" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs transition shadow-lg shadow-pink-600/30 flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <span data-i18n="btn_generate_dance">Generate TikTok Reel</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Live Loading State (Active Generation) -->
         <div id="generationLoadingBox" class="hidden w-full max-w-2xl glass-card rounded-3xl p-8 text-center space-y-6 border border-purple-500/40 shadow-2xl">
             <div class="relative w-20 h-20 mx-auto flex items-center justify-center">
@@ -367,6 +477,45 @@
                 <button onclick="resetForNewPrompt()" class="px-4 py-2.5 rounded-xl glass-card hover:bg-gray-800 text-gray-300 hover:text-white text-xs font-semibold transition flex items-center gap-1.5">
                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-purple-400"></i>
                     <span>Try Another Style</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Video Dance Result Canvas Box (TikTok/Reels 9:16 vertical player) -->
+        <div id="videoResultBox" class="hidden w-full max-w-lg glass-card rounded-3xl p-6 space-y-5 border border-pink-500/40 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-pink-500 animate-pulse"></span>
+                    <span class="text-xs font-bold text-white uppercase tracking-wider" id="videoResultTemplateTag">TikTok Dance Reel</span>
+                </div>
+                <div class="text-xs text-pink-400 font-mono" id="videoResultDurationTag">24.0s</div>
+            </div>
+
+            <!-- Video Player -->
+            <div class="relative w-full aspect-[9/16] max-h-[65vh] mx-auto rounded-2xl overflow-hidden bg-black border border-gray-800 shadow-2xl flex items-center justify-center">
+                <video id="videoResultPlayer" class="w-full h-full object-contain" loop autoplay playsinline controls>
+                    <source id="videoResultSource" src="" type="video/mp4">
+                    Your browser does not support HTML5 video.
+                </video>
+            </div>
+
+            <!-- Video Actions -->
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-800">
+                <div class="flex items-center gap-2">
+                    <a id="downloadVideoBtn" href="#" download="TikTok_Dance_Reel.mp4" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:opacity-90 text-white text-xs font-semibold shadow-lg shadow-pink-600/30 transition flex items-center gap-1.5">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Download MP4</span>
+                    </a>
+
+                    <a id="shareTikTokBtn" href="https://www.tiktok.com/upload" target="_blank" class="px-3.5 py-2.5 rounded-xl glass-card hover:bg-gray-800 text-pink-300 hover:text-white text-xs font-semibold transition flex items-center gap-1.5 border border-pink-500/30">
+                        <i data-lucide="share-2" class="w-3.5 h-3.5 text-pink-400"></i>
+                        <span>TikTok</span>
+                    </a>
+                </div>
+
+                <button onclick="resetDanceForNewPrompt()" class="px-3.5 py-2.5 rounded-xl glass-card hover:bg-gray-800 text-gray-300 hover:text-white text-xs font-semibold transition flex items-center gap-1.5">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-pink-400"></i>
+                    <span>Another Dance</span>
                 </button>
             </div>
         </div>
@@ -618,9 +767,12 @@
 
         // App State
         let currentUser = JSON.parse(localStorage.getItem('aurastudio_user') || 'null');
+        let currentStudioMode = 'photo';
         let currentLang = 'en';
         let attachedFileBase64 = null;
         let selectedPresetId = null;
+        let selectedDanceTemplate = 'viral_house_shuffle';
+        let danceAttachedFileBase64 = null;
         let telegramPollInterval = null;
         let currentRating = 5;
 
@@ -631,26 +783,44 @@
                 nav_telemetry: "Live Stats",
                 btn_pro: "Upgrade",
                 btn_login: "Sign In",
+                tab_photo_studio: "Photo Studio",
+                tab_dance_studio: "TikTok Dance & Reels",
                 greeting_title: "What would you like to create?",
                 greeting_subtitle: "Upload any selfie or portrait, then describe your desired transformation or pick a style using /.",
                 prompt_placeholder: "Describe how to transform this photo, or type '/' for designer styles...",
                 btn_attach: "Attach Photo",
                 btn_styles: "Presets",
                 btn_generate: "Generate",
-                msg_photo_ready: "Photo attached & ready"
+                msg_photo_ready: "Photo attached & ready",
+                dance_title: "AI Character Dance Retargeting",
+                dance_subtitle: "Transform your photo into a viral TikTok dancing video with motion sync.",
+                dance_step1: "Character / Face Photo",
+                dance_upload_char: "Choose Portrait Photo",
+                dance_step2: "Select Trending TikTok Dance",
+                dance_audio_sync: "Auto-sync TikTok trending music track",
+                btn_generate_dance: "Generate TikTok Reel"
             },
             uk: {
                 nav_catalog: "Каталог",
                 nav_telemetry: "Моніторинг",
                 btn_pro: "Підписка",
                 btn_login: "Увійти",
+                tab_photo_studio: "Фото-студія",
+                tab_dance_studio: "TikTok Танці & Reels",
                 greeting_title: "Що ви хочете створити сьогодні?",
                 greeting_subtitle: "Завантажте фото та опишіть бажану зміну або оберіть готовий стиль через /.",
                 prompt_placeholder: "Опишіть, як змінити фото, або введіть '/' для вибору стилів...",
                 btn_attach: "Додати фото",
                 btn_styles: "Пресети",
                 btn_generate: "Згенерувати",
-                msg_photo_ready: "Фото прикріплено"
+                msg_photo_ready: "Фото прикріплено",
+                dance_title: "AI Заміна персонажа та танець",
+                dance_subtitle: "Перетворіть своє фото на вірусний TikTok-танець із синхронізацією рухів.",
+                dance_step1: "Фото персонажа / обличчя",
+                dance_upload_char: "Вибрати фото портрета",
+                dance_step2: "Оберіть трендовий танець TikTok",
+                dance_audio_sync: "Авто-синхронізація вірусного треку",
+                btn_generate_dance: "Згенерувати TikTok Reel"
             }
         };
 
@@ -846,6 +1016,154 @@
             if (input) {
                 input.value = '';
             }
+        }
+
+        // Studio Mode Switching
+        function switchStudioMode(mode) {
+            currentStudioMode = mode;
+            const photoBox = document.getElementById('photoStudioBox');
+            const danceBox = document.getElementById('danceStudioBox');
+            const modePhotoBtn = document.getElementById('modePhotoBtn');
+            const modeDanceBtn = document.getElementById('modeDanceBtn');
+            const resultCanvasBox = document.getElementById('resultCanvasBox');
+            const videoResultBox = document.getElementById('videoResultBox');
+
+            if (resultCanvasBox) resultCanvasBox.classList.add('hidden');
+            if (videoResultBox) videoResultBox.classList.add('hidden');
+
+            if (mode === 'dance') {
+                photoBox.classList.add('hidden');
+                danceBox.classList.remove('hidden');
+                modeDanceBtn.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-md shadow-pink-600/30";
+                modePhotoBtn.className = "px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white transition flex items-center gap-2";
+                
+                // Carry over attached image if exists
+                if (attachedFileBase64 && !danceAttachedFileBase64) {
+                    danceAttachedFileBase64 = attachedFileBase64;
+                    document.getElementById('danceThumbImg').src = danceAttachedFileBase64;
+                    document.getElementById('danceThumbImg').classList.remove('hidden');
+                    document.getElementById('danceThumbPlaceholder').classList.add('hidden');
+                }
+            } else {
+                photoBox.classList.remove('hidden');
+                danceBox.classList.add('hidden');
+                modePhotoBtn.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md shadow-purple-600/30";
+                modeDanceBtn.className = "px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white transition flex items-center gap-2";
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function selectDanceTemplate(templateId, el) {
+            selectedDanceTemplate = templateId;
+            document.querySelectorAll('.dance-template-card').forEach(card => {
+                card.classList.remove('active', 'border-2', 'border-pink-500');
+                card.classList.add('border', 'border-gray-800');
+            });
+            if (el) {
+                el.classList.add('active', 'border-2', 'border-pink-500');
+                el.classList.remove('border-gray-800');
+            }
+        }
+
+        function handleDanceFileInput(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                danceAttachedFileBase64 = e.target.result;
+                document.getElementById('danceThumbImg').src = danceAttachedFileBase64;
+                document.getElementById('danceThumbImg').classList.remove('hidden');
+                document.getElementById('danceThumbPlaceholder').classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function triggerDanceGeneration() {
+            if (!currentUser || !currentUser.id) {
+                openAuthModal();
+                return;
+            }
+
+            const imgData = danceAttachedFileBase64 || attachedFileBase64;
+            if (!imgData) {
+                alert(currentLang === 'uk' ? 'Будь ласка, завантажте фото портрета для анімації.' : 'Please upload a portrait photo to animate.');
+                return;
+            }
+
+            // Show Loading State
+            document.getElementById('videoResultBox').classList.add('hidden');
+            document.getElementById('generationLoadingBox').classList.remove('hidden');
+            document.getElementById('loadingStatusText').innerText = currentLang === 'uk' ? 'Синтез рухів танцю та відео TikTok...' : 'Synthesizing TikTok dance motion & video...';
+            document.getElementById('generateDanceBtn').disabled = true;
+
+            const pBar = document.getElementById('loadingProgressBar');
+            pBar.style.width = '15%';
+            let progress = 15;
+            const progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += 3;
+                    pBar.style.width = progress + '%';
+                }
+            }, 600);
+
+            try {
+                const res = await fetch('/api/generate-dance-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_base64: imgData,
+                        dance_template_id: selectedDanceTemplate,
+                        audio_sync: document.getElementById('danceAudioSyncToggle').checked,
+                        user_id: currentUser.id
+                    })
+                });
+
+                clearInterval(progressInterval);
+                pBar.style.width = '100%';
+
+                const data = await res.json();
+                if (data.status === 'auth_required') {
+                    document.getElementById('generationLoadingBox').classList.add('hidden');
+                    document.getElementById('generateDanceBtn').disabled = false;
+                    openAuthModal();
+                    return;
+                }
+
+                if (data.status === 'success') {
+                    setTimeout(() => {
+                        document.getElementById('generationLoadingBox').classList.add('hidden');
+                        document.getElementById('generateDanceBtn').disabled = false;
+
+                        const videoPlayer = document.getElementById('videoResultPlayer');
+                        const videoSource = document.getElementById('videoResultSource');
+                        
+                        if (data.result_video_url) {
+                            videoSource.src = data.result_video_url;
+                            videoPlayer.load();
+                            videoPlayer.play().catch(() => {});
+                            document.getElementById('downloadVideoBtn').href = data.result_video_url;
+                        }
+
+                        document.getElementById('videoResultDurationTag').innerText = (data.duration_seconds || '24.0') + 's';
+                        document.getElementById('videoResultBox').classList.remove('hidden');
+                        document.getElementById('videoResultBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        if (window.lucide) lucide.createIcons();
+                    }, 400);
+                } else {
+                    alert(data.message || 'Video generation failed.');
+                    document.getElementById('generationLoadingBox').classList.add('hidden');
+                    document.getElementById('generateDanceBtn').disabled = false;
+                }
+            } catch (err) {
+                clearInterval(progressInterval);
+                alert('Connection error: ' + err.message);
+                document.getElementById('generationLoadingBox').classList.add('hidden');
+                document.getElementById('generateDanceBtn').disabled = false;
+            }
+        }
+
+        function resetDanceForNewPrompt() {
+            document.getElementById('videoResultBox').classList.add('hidden');
+            document.getElementById('danceStudioBox').scrollIntoView({ behavior: 'smooth' });
         }
 
         // Attachment & Drag and Drop Handling
