@@ -34,6 +34,43 @@ function logCriticalError(env, ctx, context, errorMsg, userId = null, details = 
   }
 }
 
+// Modal Multi-Account Failover Endpoints (Auto load-balancing across accounts)
+const MODAL_PHOTO_ENDPOINTS = [
+  "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
+  "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
+];
+
+const MODAL_VIDEO_ENDPOINTS = [
+  "https://memory1024--aurastudio-video-dance-service-videodanceengine-api-dance.modal.run",
+  "https://dmytrobbch--aurastudio-video-dance-service-videodanceengine-api-dance.modal.run"
+];
+
+// Helper: Call Modal with automatic account failover
+async function callModalWithFallback(endpoints, payload) {
+  let lastErr = "";
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === "success") {
+          return data;
+        }
+        lastErr = data.message || "Model failed to process";
+      } else {
+        lastErr = await res.text();
+      }
+    } catch (e) {
+      lastErr = e.message;
+    }
+  }
+  throw new Error(`All Modal GPU endpoints failed. Last error: ${lastErr}`);
+}
+
 // Helper: Upload Base64 to R2 Storage
 async function uploadToR2(bucket, key, base64Data) {
   if (!bucket) return null;
@@ -547,11 +584,6 @@ export default {
             }
           }
 
-          const modalEndpoints = [
-            "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
-            env.MODAL_ENDPOINT_URL || "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
-          ];
-
           const taskId = `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
           const shareToken = taskId.replace('task_', 's_');
           const cleanNeg = "text, watermark, changed face, altered eyes, blurry face, different identity, fake skin, plastic wax, doll, airbrushed skin, deformed, blurry";
@@ -566,31 +598,9 @@ export default {
           };
 
           const t0 = Date.now();
-          let modalResp = null;
-          let lastErrText = "";
+          const modalData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, payload);
 
-          for (const endpoint of modalEndpoints) {
-            try {
-              modalResp = await fetch(endpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-              });
-              if (modalResp.ok) break;
-              lastErrText = await modalResp.text();
-              console.warn(`[Modal Failover] Primary endpoint ${endpoint} failed (${modalResp.status}): ${lastErrText}. Trying next...`);
-            } catch (netErr) {
-              lastErrText = netErr.message;
-              console.warn(`[Modal Failover] Network error on ${endpoint}: ${lastErrText}. Trying next...`);
-            }
-          }
-
-          if (!modalResp || !modalResp.ok) {
-            throw new Error(`Modal A10G Cloud GPU Error: ${lastErrText}`);
-          }
-
-          const modalData = await modalResp.json();
-          if (modalData.status !== "success" || !modalData.result_base64) {
+          if (!modalData || !modalData.result_base64) {
             throw new Error(modalData.message || "Model failed to return edited image");
           }
 
@@ -698,8 +708,6 @@ export default {
           const taskId = `dance_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
           const shareToken = taskId.replace('dance_', 'v_');
 
-          const modalVideoEndpoint = env.MODAL_VIDEO_ENDPOINT_URL || "https://memory1024--aurastudio-video-dance-service-videodanceengine-api-dance.modal.run";
-          
           const payload = {
             image_base64: image_base64.replace(/^data:image\/\w+;base64,/, ""),
             dance_template_id: dance_template_id || "viral_house_shuffle",
@@ -711,32 +719,12 @@ export default {
           };
 
           const t0 = Date.now();
-          let modalResp = null;
-          let lastErrText = "";
-
-          try {
-            modalResp = await fetch(modalVideoEndpoint, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload)
-            });
-          } catch (netErr) {
-            lastErrText = netErr.message;
-          }
-
-          let resultVideoUri = null;
-          let dur = ((Date.now() - t0) / 1000).toFixed(1);
-
-          if (modalResp && modalResp.ok) {
-            const modalData = await modalResp.json();
-            if (modalData.status === "success" && modalData.result_video_base64) {
-              resultVideoUri = modalData.result_video_base64;
-              dur = modalData.duration_seconds || dur;
-            }
-          }
+          const modalData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, payload);
+          let resultVideoUri = modalData.result_video_base64;
+          let dur = modalData.duration_seconds || ((Date.now() - t0) / 1000).toFixed(1);
 
           if (!resultVideoUri) {
-            throw new Error(lastErrText || "Video generation failed on remote GPU.");
+            throw new Error("Video generation failed on remote GPU.");
           }
 
           // Upload generated video to R2 if available
@@ -1166,22 +1154,16 @@ export default {
                   const photoBuffer = await photoBlobRes.arrayBuffer();
                   const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
 
-                  // Call Modal GPU
-                  const modalEndpoint = "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run";
-                  const modalResp = await fetch(modalEndpoint, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      image_base64: photoBase64,
-                      prompt: prompt,
-                      negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-                      steps: 22,
-                      cfg: 1.95,
-                      seed: 888424
-                    })
+                  // Call Modal GPU with multi-account failover
+                  const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+                    image_base64: photoBase64,
+                    prompt: prompt,
+                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+                    steps: 22,
+                    cfg: 1.95,
+                    seed: 888424
                   });
 
-                  const mData = await modalResp.json();
                   if (mData.status === "success" && mData.result_base64) {
                     await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${presetKey.toUpperCase()}*\nДвигун: Qwen 2.5 DiT 20B`, {
                       reply_markup: {
@@ -1274,20 +1256,16 @@ export default {
                 const photoBuffer = await photoBlobRes.arrayBuffer();
                 const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
 
-                const modalResp = await fetch("https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    image_base64: photoBase64,
-                    prompt: caption,
-                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-                    steps: 22,
-                    cfg: 1.95,
-                    seed: 888424
-                  })
+                // Call Modal GPU with multi-account failover
+                const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+                  image_base64: photoBase64,
+                  prompt: caption,
+                  negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+                  steps: 22,
+                  cfg: 1.95,
+                  seed: 888424
                 });
 
-                const mData = await modalResp.json();
                 if (mData.status === "success" && mData.result_base64) {
                   await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nОпис: _"${caption}"_`);
                 } else {
