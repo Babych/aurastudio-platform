@@ -63,7 +63,7 @@ def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str 
     pil_raw = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     orig_w, orig_h = pil_raw.size
     
-    max_side = 1024
+    max_side = 768
     scale = min(max_side / max(orig_w, orig_h), 1.0)
     target_w = max(512, int(orig_w * scale) // 16 * 16)
     target_h = max(512, int(orig_h * scale) // 16 * 16)
@@ -194,7 +194,7 @@ def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str 
 
 @app.cls(
     image=image,
-    gpu="A10G", # 24GB VRAM Nvidia GPU
+    gpu="L40S", # 48GB VRAM Nvidia Ada Lovelace GPU
     volumes={"/models": models_volume},
     timeout=600,
     scaledown_window=300, # Keep warm for 5 minutes
