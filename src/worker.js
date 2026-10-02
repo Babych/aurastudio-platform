@@ -31,18 +31,16 @@ function arrayBufferToBase64(buffer) {
 }
 
 // Helper: Log critical errors to D1
-function logCriticalError(env, ctx, context, errorMsg, userId = null, details = null) {
-  if (env.DB) {
-    ctx.waitUntil((async () => {
-      try {
-        await env.DB.prepare(`
-          INSERT INTO error_logs (context, error_message, user_id, details)
-          VALUES (?, ?, ?, ?)
-        `).bind(context, errorMsg, userId, details ? JSON.stringify(details) : null).run();
-      } catch (e) {
-        console.error("Failed to write to error_logs:", e);
-      }
-    })());
+async function logCriticalError(env, ctx, context, errorMsg, userId = null, details = null) {
+  if (env && env.DB) {
+    try {
+      await env.DB.prepare(`
+        INSERT INTO error_logs (context, error_message, user_id, details)
+        VALUES (?, ?, ?, ?)
+      `).bind(context, (errorMsg || "").slice(0, 1000), userId, details ? JSON.stringify(details) : null).run();
+    } catch (e) {
+      console.error("Failed to write to error_logs:", e);
+    }
   }
 }
 
