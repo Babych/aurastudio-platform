@@ -180,21 +180,110 @@ async function setTgSession(env, userId, data) {
   if (env && env.DB) {
     try {
       await ensureTgSessionTable(env);
-      await env.DB.prepare(`
-        INSERT OR REPLACE INTO telegram_sessions (user_id, last_photo_file_id, pending_action, pending_style, current_task_id, pending_prompt, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).bind(
-        userId,
-        updated.lastPhotoFileId || updated.last_photo_file_id || null,
-        updated.pendingAction || updated.pending_action || null,
-        updated.pendingStyle || updated.templateId || updated.presetKey || null,
-        updated.currentTaskId || updated.current_task_id || null,
-        updated.prompt || updated.pending_prompt || null
-      ).run();
+      try {
+        await env.DB.prepare(`
+          INSERT INTO telegram_sessions (user_id, last_photo_file_id, pending_action, pending_style, current_task_id, pending_prompt, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id) DO UPDATE SET
+            last_photo_file_id = COALESCE(excluded.last_photo_file_id, telegram_sessions.last_photo_file_id),
+            pending_action = excluded.pending_action,
+            pending_style = excluded.pending_style,
+            current_task_id = COALESCE(excluded.current_task_id, telegram_sessions.current_task_id),
+            pending_prompt = excluded.pending_prompt,
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(
+          userId,
+          updated.lastPhotoFileId || updated.last_photo_file_id || null,
+          updated.pendingAction || updated.pending_action || null,
+          updated.pendingStyle || updated.templateId || updated.presetKey || null,
+          updated.currentTaskId || updated.current_task_id || null,
+          updated.prompt || updated.pending_prompt || null
+        ).run();
+      } catch (colErr) {
+        try { await env.DB.prepare(`ALTER TABLE telegram_sessions ADD COLUMN current_task_id TEXT`).run(); } catch(e){}
+        try { await env.DB.prepare(`ALTER TABLE telegram_sessions ADD COLUMN pending_prompt TEXT`).run(); } catch(e){}
+        await env.DB.prepare(`
+          INSERT INTO telegram_sessions (user_id, last_photo_file_id, pending_action, pending_style, current_task_id, pending_prompt, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id) DO UPDATE SET
+            last_photo_file_id = COALESCE(excluded.last_photo_file_id, telegram_sessions.last_photo_file_id),
+            pending_action = excluded.pending_action,
+            pending_style = excluded.pending_style,
+            current_task_id = COALESCE(excluded.current_task_id, telegram_sessions.current_task_id),
+            pending_prompt = excluded.pending_prompt,
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(
+          userId,
+          updated.lastPhotoFileId || updated.last_photo_file_id || null,
+          updated.pendingAction || updated.pending_action || null,
+          updated.pendingStyle || updated.templateId || updated.presetKey || null,
+          updated.currentTaskId || updated.current_task_id || null,
+          updated.prompt || updated.pending_prompt || null
+        ).run();
+      }
     } catch(e) {
       console.error("D1 setTgSession error:", e);
     }
   }
+}
+
+// Helper: Resolve base64 image and task ID for Telegram user from File ID, session, or recent D1 record
+async function getTgUserPhotoBase64(env, botToken, userId, explicitFileId) {
+  const session = await getTgSession(env, userId);
+  const photoFileId = explicitFileId || session.lastPhotoFileId;
+
+  if (photoFileId) {
+    try {
+      const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
+      const fileData = await fileRes.json();
+      if (fileData.ok && fileData.result?.file_path) {
+        const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+        const photoBuffer = await photoBlobRes.arrayBuffer();
+        const base64 = arrayBufferToBase64(photoBuffer);
+        return { base64, taskId: session.currentTaskId, fileId: photoFileId };
+      }
+    } catch (e) {
+      console.error("Error fetching photo from Telegram getFile:", e);
+    }
+  }
+
+  // Fallback: Check latest generation in D1 for this user
+  if (env && env.DB) {
+    try {
+      const row = await env.DB.prepare(`
+        SELECT id, input_image_url FROM generations 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `).bind(userId).first();
+
+      if (row && row.input_image_url && row.input_image_url !== 'uploaded_image') {
+        let b64 = null;
+        if (row.input_image_url.startsWith("data:")) {
+          b64 = row.input_image_url.replace(/^data:image\/\w+;base64,/, "");
+        } else if (row.input_image_url.startsWith("/media/") && env.STORAGE) {
+          const obj = await env.STORAGE.get(row.input_image_url.replace("/media/", ""));
+          if (obj) {
+            const buf = await obj.arrayBuffer();
+            b64 = arrayBufferToBase64(buf);
+          }
+        } else if (row.input_image_url.startsWith("http")) {
+          const imgRes = await fetch(row.input_image_url);
+          if (imgRes.ok) {
+            const buf = await imgRes.arrayBuffer();
+            b64 = arrayBufferToBase64(buf);
+          }
+        }
+        if (b64) {
+          return { base64: b64, taskId: row.id, fileId: photoFileId || null };
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching photo from D1 fallback:", e);
+    }
+  }
+
+  return null;
 }
 
 // Helper: Record completed or failed generation in D1 with visual previews for Dashboard
@@ -1282,6 +1371,69 @@ export default {
     }
 
     // =========================================================================
+    // 9B. SMOKE TEST API: Automated End-to-End System Health & GPU Verification
+    // =========================================================================
+    if (url.pathname === "/api/smoke-test" || url.pathname === "/functions/api/smoke-test") {
+      try {
+        const adminKey = url.searchParams.get("admin_key") || request.headers.get("x-admin-key");
+        if (adminKey !== "aurastudio-admin-2026" && adminKey !== "smoke_test_run") {
+          return jsonResponse({ status: "unauthorized", message: "Invalid admin key" }, 401);
+        }
+
+        const presetKey = url.searchParams.get("preset") || "linkedin";
+        const prompt = PRESETS[presetKey]?.prompt || "change clothes to sharp tailored navy suit, keep exact same person, 100% exact original face, natural skin texture";
+        const taskId = `smoke_test_${Date.now()}`;
+        const startTime = Date.now();
+
+        // 64x64 PNG Base64 test canvas
+        const sampleBase64 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAMElEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4MWhgAAGt16kAAAAAAElFTkSuQmCC";
+
+        const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+          image_base64: sampleBase64,
+          prompt: prompt,
+          negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+          steps: 20,
+          cfg: 1.95,
+          seed: 888424
+        });
+
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        if (mData.status === "success" && mData.result_base64) {
+          await recordGenerationInD1(env, {
+            id: taskId,
+            userId: "smoke_tester_999",
+            source: "smoke_test",
+            presetId: presetKey,
+            prompt,
+            inputBase64: sampleBase64,
+            outputBase64: mData.result_base64,
+            duration,
+            status: "SUCCESS"
+          });
+
+          return jsonResponse({
+            status: "success",
+            task_id: taskId,
+            preset: presetKey,
+            duration: `${duration}s`,
+            gpu_engine: "Qwen 2.5 DiT (Modal A10G)",
+            message: "Smoke test generation completed and recorded in D1 successfully",
+            output_preview_size: mData.result_base64.length
+          });
+        } else {
+          throw new Error(mData.message || "Model failed to return output");
+        }
+      } catch (err) {
+        console.error("Smoke test failed:", err);
+        return jsonResponse({
+          status: "failed",
+          error: err.message
+        }, 500);
+      }
+    }
+
+    // =========================================================================
     // 10. TELEGRAM WEBHOOK: @AuraStudioAiBot Full Serverless Bot Handler
     // =========================================================================
     if (url.pathname === "/api/telegram-webhook" || url.pathname === "/functions/api/telegram-webhook") {
@@ -1515,13 +1667,13 @@ export default {
               ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes"
               : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes";
             
-            const session = await getTgSession(env, userId);
-            const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
-                                cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id ||
-                                session.lastPhotoFileId;
-            const targetTaskId = session.currentTaskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const explicitFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
+                                   cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id;
+            
+            const photoData = await getTgUserPhotoBase64(env, botToken, userId, explicitFileId);
 
-            if (photoFileId) {
+            if (photoData && photoData.base64) {
+              const targetTaskId = photoData.taskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
               const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN (4K MACRO)" : presetKey.toUpperCase();
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${styleLabel})...*\n\n_${isUltraHd ? "Формуємо індивідуальні пори, пушкове волосся та мікрорельєф шкіри (~25-30с)" : "Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)"}_`);
               sendTgChatAction(chatId, "upload_photo");
@@ -1529,17 +1681,9 @@ export default {
               ctx.waitUntil((async () => {
                 const startTime = Date.now();
                 try {
-                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
-                  const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
-
-                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
-                  const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = arrayBufferToBase64(photoBuffer);
-
                   // Call Modal GPU with multi-account failover
                   const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
-                    image_base64: photoBase64,
+                    image_base64: photoData.base64,
                     prompt: prompt,
                     negative_prompt: negPrompt,
                     steps: steps,
@@ -1556,7 +1700,7 @@ export default {
                       source: "telegram_bot",
                       presetId: presetKey,
                       prompt,
-                      inputBase64: photoBase64,
+                      inputBase64: photoData.base64,
                       outputBase64: mData.result_base64,
                       duration,
                       status: "SUCCESS"
@@ -1610,30 +1754,22 @@ export default {
             };
             const danceName = danceNames[templateId] || "TikTok Dance";
 
-            const session = await getTgSession(env, userId);
-            const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
-                                cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id ||
-                                session.lastPhotoFileId;
-            const targetTaskId = session.currentTaskId || `dance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const explicitFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
+                                   cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id;
+            
+            const photoData = await getTgUserPhotoBase64(env, botToken, userId, explicitFileId);
 
-            if (photoFileId) {
+            if (photoData && photoData.base64) {
+              const targetTaskId = photoData.taskId || `dance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
               sendTgChatAction(chatId, "upload_video");
 
               ctx.waitUntil((async () => {
                 const startTime = Date.now();
                 try {
-                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
-                  const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
-
-                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
-                  const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = arrayBufferToBase64(photoBuffer);
-
                   // Call Modal GPU Video Dance failover
                   const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
-                    image_base64: photoBase64,
+                    image_base64: photoData.base64,
                     dance_template_id: templateId,
                     audio_sync: true,
                     fps: 24,
@@ -1650,7 +1786,7 @@ export default {
                       source: "telegram_bot",
                       presetId: `dance_${templateId}`,
                       prompt: `TikTok Dance: ${danceName}`,
-                      inputBase64: photoBase64,
+                      inputBase64: photoData.base64,
                       outputBase64: mData.result_video_base64,
                       duration,
                       status: "SUCCESS"
@@ -2211,30 +2347,21 @@ export default {
 
           // Handle Custom Text Prompt from user
           if (text && !text.startsWith("/")) {
-            const session = await getTgSession(env, userId);
             const replyPhotos = update.message.reply_to_message?.photo;
             const replyPhotoId = replyPhotos && replyPhotos.length > 0 ? replyPhotos[replyPhotos.length - 1].file_id : null;
-            const photoFileId = replyPhotoId || session.lastPhotoFileId;
-            const targetTaskId = session.currentTaskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const photoData = await getTgUserPhotoBase64(env, botToken, userId, replyPhotoId);
 
-            if (photoFileId) {
+            if (photoData && photoData.base64) {
+              const targetTaskId = photoData.taskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${text}"_...\n\n_Зберігаємо 100% рис обличчя та деталізацію (~20-25с)_`);
               sendTgChatAction(chatId, "upload_photo");
 
               ctx.waitUntil((async () => {
                 const startTime = Date.now();
                 try {
-                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
-                  const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
-
-                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
-                  const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = arrayBufferToBase64(photoBuffer);
-
                   // Call Modal GPU with multi-account failover
                   const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
-                    image_base64: photoBase64,
+                    image_base64: photoData.base64,
                     prompt: text,
                     negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
                     steps: 22,
@@ -2251,7 +2378,7 @@ export default {
                       source: "telegram_bot",
                       presetId: "custom",
                       prompt: text,
-                      inputBase64: photoBase64,
+                      inputBase64: photoData.base64,
                       outputBase64: mData.result_base64,
                       duration,
                       status: "SUCCESS"
