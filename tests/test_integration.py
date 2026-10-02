@@ -130,6 +130,28 @@ class TestAuraStudioPlatformIntegration(unittest.TestCase):
             print(f"  [PASS] E2E Task {data.get('task_id')} completed in {data.get('duration')} (Total HTTP: {elapsed:.2f}s)")
             print(f"  [PASS] Engine: {data.get('gpu_engine')}")
 
+    def test_05_telegram_bot_webhook_and_sessions(self):
+        """Verify Telegram webhook configuration, bot status, and session resolution."""
+        url = f"{PROD_API_URL}/api/telegram-debug?admin_key={ADMIN_KEY}"
+        print(f"\n[Test 5] Checking Telegram Bot Webhook & Session Health: {url}...")
+
+        req = urllib.request.Request(url, headers={"User-Agent": "AuraStudioIntegrationTest/1.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+
+            self.assertEqual(data.get("status"), "success")
+            self.assertTrue(data.get("bot_token_present"), "Telegram bot token missing in Cloudflare Worker secrets")
+            
+            tg_me = data.get("telegram_me", {})
+            self.assertTrue(tg_me.get("ok"), f"Telegram getMe failed: {tg_me}")
+            self.assertEqual(tg_me.get("result", {}).get("username"), "thing_intellect_bot")
+            print(f"  [PASS] Bot verified: @{tg_me['result']['username']} ({tg_me['result']['first_name']})")
+
+            wh = data.get("telegram_webhook_info", {}).get("result", {})
+            self.assertEqual(wh.get("url"), f"{PROD_API_URL}/api/telegram-webhook")
+            print(f"  [PASS] Active Webhook: {wh.get('url')} (Pending updates: {wh.get('pending_update_count')})")
+
 
 if __name__ == "__main__":
     unittest.main()

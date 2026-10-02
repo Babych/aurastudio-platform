@@ -1513,6 +1513,147 @@ export default {
     }
 
     // =========================================================================
+    // 9.1 TELEGRAM BOT DEBUG & STATUS API
+    // =========================================================================
+    if (url.pathname === "/api/telegram-debug") {
+      const adminKey = url.searchParams.get("admin_key") || request.headers.get("X-Admin-Key");
+      const configuredKey = env.ADMIN_SECRET_KEY || "aurastudio-admin-2026";
+      if (!adminKey || adminKey !== configuredKey) {
+        return jsonResponse({ status: "error", message: "Unauthorized. Valid admin_key required." }, 401);
+      }
+
+      const botToken = env.AURA_BOT_TOKEN || env.TELEGRAM_BOT_TOKEN;
+      let tgMe = null;
+      let tgWebhookInfo = null;
+      let webhookActionResult = null;
+
+      if (botToken) {
+        try {
+          const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+          tgMe = await meRes.json();
+        } catch (e) {
+          tgMe = { error: e.message };
+        }
+
+        try {
+          const whRes = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
+          tgWebhookInfo = await whRes.json();
+        } catch (e) {
+          tgWebhookInfo = { error: e.message };
+        }
+
+        const action = url.searchParams.get("action");
+        if (action === "set_webhook") {
+          try {
+            const setRes = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                url: "https://aurastudio-ai.memory1024.workers.dev/api/telegram-webhook",
+                allowed_updates: ["message", "callback_query", "pre_checkout_query"],
+                drop_pending_updates: url.searchParams.get("drop_pending") === "true"
+              })
+            });
+            webhookActionResult = await setRes.json();
+          } catch (e) {
+            webhookActionResult = { error: e.message };
+          }
+        }
+
+        if (action === "test_resolve") {
+          const testUserId = url.searchParams.get("user_id") || "tg_1359272262";
+          const resPhoto = await getTgUserPhotoBase64(env, botToken, testUserId, null);
+          return jsonResponse({
+            status: "success",
+            user_id: testUserId,
+            found: !!resPhoto,
+            taskId: resPhoto?.taskId,
+            fileId: resPhoto?.fileId,
+            base64_length: resPhoto?.base64?.length
+          });
+        }
+
+        if (action === "test_generate") {
+          const testUserId = url.searchParams.get("user_id") || "tg_1359272262";
+          const presetKey = url.searchParams.get("preset") || "linkedin";
+          const resPhoto = await getTgUserPhotoBase64(env, botToken, testUserId, null);
+          if (!resPhoto || !resPhoto.base64) {
+            return jsonResponse({ status: "error", message: "No photo found for user", testUserId }, 400);
+          }
+          const prompt = GLOBAL_PRESETS[presetKey] || "enhance photo to studio magazine portrait";
+          const startTime = Date.now();
+          const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+            image_base64: resPhoto.base64,
+            prompt,
+            negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+            steps: 16,
+            cfg: 1.95,
+            seed: 888424
+          });
+          const dur = ((Date.now() - startTime) / 1000).toFixed(1);
+          const taskId = resPhoto.taskId || `tg_gen_${Date.now()}`;
+          await recordGenerationInD1(env, {
+            id: taskId,
+            userId: testUserId,
+            source: "telegram_bot",
+            presetId: presetKey,
+            prompt,
+            inputBase64: resPhoto.base64,
+            outputBase64: mData.result_base64,
+            duration: dur,
+            status: "SUCCESS"
+          });
+          return jsonResponse({
+            status: "success",
+            duration: `${dur}s`,
+            taskId,
+            result_base64_length: mData.result_base64?.length
+          });
+        }
+      }
+
+      let recentGenerations = [];
+      let recentErrors = [];
+      let recentSessions = [];
+      if (env.DB) {
+        try {
+          const gRes = await env.DB.prepare(`
+            SELECT id, user_id, source, preset_id, prompt, status, duration_seconds, error_message, created_at
+            FROM generations ORDER BY rowid DESC LIMIT 10
+          `).all();
+          recentGenerations = gRes.results || [];
+        } catch(e) { recentGenerations = [{ error: e.message }]; }
+
+        try {
+          const eRes = await env.DB.prepare(`
+            SELECT id, context, error_message, user_id, details, created_at
+            FROM error_logs ORDER BY rowid DESC LIMIT 10
+          `).all();
+          recentErrors = eRes.results || [];
+        } catch(e) { recentErrors = [{ error: e.message }]; }
+
+        try {
+          const sRes = await env.DB.prepare(`
+            SELECT * FROM telegram_sessions ORDER BY rowid DESC LIMIT 10
+          `).all();
+          recentSessions = sRes.results || [];
+        } catch(e) { recentSessions = [{ error: e.message }]; }
+      }
+
+      return jsonResponse({
+        status: "success",
+        timestamp: new Date().toISOString(),
+        bot_token_present: !!botToken,
+        telegram_me: tgMe,
+        telegram_webhook_info: tgWebhookInfo,
+        webhook_action_result: webhookActionResult,
+        recent_generations: recentGenerations,
+        recent_sessions: recentSessions,
+        recent_errors: recentErrors
+      });
+    }
+
+    // =========================================================================
     // 10. TELEGRAM WEBHOOK: @AuraStudioAiBot Full Serverless Bot Handler
     // =========================================================================
     if (url.pathname === "/api/telegram-webhook" || url.pathname === "/functions/api/telegram-webhook") {
@@ -1547,7 +1688,7 @@ export default {
           try {
             let res, data;
             if (photoUrlOrBase64.startsWith("data:") || !photoUrlOrBase64.startsWith("http")) {
-              const base64Data = photoUrlOrBase64.replace(/^data:image\/\w+;base64,/, "");
+              const base64Data = photoUrlOrBase64.replace(/^data:image\/\w+;base64,/, "").replace(/\s/g, "");
               const binaryStr = atob(base64Data);
               const bytes = new Uint8Array(binaryStr.length);
               for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
@@ -1606,7 +1747,7 @@ export default {
           try {
             let res, data;
             if (videoUrlOrBase64.startsWith("data:") || !videoUrlOrBase64.startsWith("http")) {
-              const base64Data = videoUrlOrBase64.replace(/^data:video\/\w+;base64,/, "");
+              const base64Data = videoUrlOrBase64.replace(/^data:video\/\w+;base64,/, "").replace(/\s/g, "");
               const binaryStr = atob(base64Data);
               const bytes = new Uint8Array(binaryStr.length);
               for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
@@ -1687,9 +1828,9 @@ export default {
         // Handle Callback Queries (Inline button clicks)
         if (update.callback_query) {
           const cb = update.callback_query;
-          const chatId = cb.message?.chat?.id;
+          const chatId = cb.message?.chat?.id || cb.from?.id;
           const user = cb.from || {};
-          const userId = `tg_${user.id}`;
+          const userId = `tg_${user.id || cb.message?.chat?.id}`;
           const data = cb.data || "";
 
           await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
