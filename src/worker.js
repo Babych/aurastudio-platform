@@ -135,9 +135,13 @@ async function ensureTgSessionTable(env) {
         last_photo_file_id TEXT,
         pending_action TEXT,
         pending_style TEXT,
+        current_task_id TEXT,
+        pending_prompt TEXT,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `).run();
+    try { await env.DB.prepare(`ALTER TABLE telegram_sessions ADD COLUMN current_task_id TEXT`).run(); } catch(e){}
+    try { await env.DB.prepare(`ALTER TABLE telegram_sessions ADD COLUMN pending_prompt TEXT`).run(); } catch(e){}
     isTgSessionTableReady = true;
   } catch (e) {
     console.error("ensureTgSessionTable error:", e);
@@ -156,7 +160,9 @@ async function getTgSession(env, userId) {
           pendingAction: row.pending_action,
           pendingStyle: row.pending_style,
           templateId: row.pending_style,
-          presetKey: row.pending_style
+          presetKey: row.pending_style,
+          currentTaskId: row.current_task_id,
+          prompt: row.pending_prompt
         };
       }
     } catch(e) {
@@ -175,13 +181,15 @@ async function setTgSession(env, userId, data) {
     try {
       await ensureTgSessionTable(env);
       await env.DB.prepare(`
-        INSERT OR REPLACE INTO telegram_sessions (user_id, last_photo_file_id, pending_action, pending_style, updated_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT OR REPLACE INTO telegram_sessions (user_id, last_photo_file_id, pending_action, pending_style, current_task_id, pending_prompt, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `).bind(
         userId,
         updated.lastPhotoFileId || updated.last_photo_file_id || null,
         updated.pendingAction || updated.pending_action || null,
-        updated.pendingStyle || updated.templateId || updated.presetKey || null
+        updated.pendingStyle || updated.templateId || updated.presetKey || null,
+        updated.currentTaskId || updated.current_task_id || null,
+        updated.prompt || updated.pending_prompt || null
       ).run();
     } catch(e) {
       console.error("D1 setTgSession error:", e);
@@ -195,7 +203,7 @@ async function recordGenerationInD1(env, { id, userId, source = 'telegram_bot', 
   try {
     const taskId = id || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     let inThumb = inputBase64 ? (inputBase64.startsWith("data:") ? inputBase64 : `data:image/jpeg;base64,${inputBase64}`) : null;
-    let outThumb = outputBase64 ? (outputBase64.startsWith("data:") ? outputBase64 : `data:image/png;base64,${outputBase64}`) : null;
+    let outThumb = outputBase64 ? (outputBase64.startsWith("data:") ? outputBase64 : (outputBase64.startsWith("http") || outputBase64.startsWith("/") ? outputBase64 : `data:image/png;base64,${outputBase64}`)) : null;
 
     if (env.STORAGE) {
       try {
@@ -215,11 +223,20 @@ async function recordGenerationInD1(env, { id, userId, source = 'telegram_bot', 
     }
 
     const shareToken = Math.random().toString(36).substring(2, 10);
-    const durSec = parseFloat(duration) || 28.0;
+    const parsedDur = parseFloat(duration);
+    const durSec = (!isNaN(parsedDur) && parsedDur > 0) ? parsedDur : null;
 
     await env.DB.prepare(`
       INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, output_image_url, status, duration_seconds, is_shared, share_token, error_message)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        preset_id = excluded.preset_id,
+        prompt = excluded.prompt,
+        input_image_url = CASE WHEN excluded.input_image_url IS NOT NULL AND excluded.input_image_url != 'uploaded_image' THEN excluded.input_image_url ELSE generations.input_image_url END,
+        output_image_url = COALESCE(excluded.output_image_url, generations.output_image_url),
+        status = excluded.status,
+        duration_seconds = excluded.duration_seconds,
+        error_message = excluded.error_message
     `).bind(
       taskId,
       userId || "anonymous",
@@ -234,22 +251,25 @@ async function recordGenerationInD1(env, { id, userId, source = 'telegram_bot', 
       errorMessage || null
     ).run();
 
-    await env.DB.prepare(`
-      INSERT INTO telemetry_events (event_type, source, user_id, duration_seconds, usd_amount, details)
-      VALUES (?, ?, ?, ?, 0.0, ?)
-    `).bind(
-      status === 'SUCCESS' ? 'GENERATION_SUCCESS' : 'GENERATION_FAILURE',
-      source,
-      userId || "anonymous",
-      durSec,
-      JSON.stringify({ preset: presetId, prompt: (prompt || "").slice(0, 100), task_id: taskId, error: errorMessage })
-    ).run();
-
-    if (userId) {
+    if (status === 'SUCCESS' || status === 'FAILED') {
       await env.DB.prepare(`
-        UPDATE users SET total_generations = COALESCE(total_generations, 0) + 1 WHERE id = ?
-      `).bind(userId).run();
+        INSERT INTO telemetry_events (event_type, source, user_id, duration_seconds, usd_amount, details)
+        VALUES (?, ?, ?, ?, 0.0, ?)
+      `).bind(
+        status === 'SUCCESS' ? 'GENERATION_SUCCESS' : 'GENERATION_FAILURE',
+        source,
+        userId || "anonymous",
+        durSec,
+        JSON.stringify({ preset: presetId, prompt: (prompt || "").slice(0, 100), task_id: taskId, error: errorMessage })
+      ).run();
+
+      if (userId && status === 'SUCCESS') {
+        await env.DB.prepare(`
+          UPDATE users SET total_generations = COALESCE(total_generations, 0) + 1 WHERE id = ?
+        `).bind(userId).run();
+      }
     }
+    return taskId;
   } catch (err) {
     console.error("recordGenerationInD1 error:", err);
   }
@@ -1211,33 +1231,33 @@ export default {
           }, 401);
         }
 
-        let totalUsers = 0, totalGens = 0, avgDur = "0.0", totalStars = 0, totalUsd = 0.0;
+        let totalUsers = 0, totalGens = 0, avgDur = null, totalErrors = 0;
         let recentTasks = [];
         let recentErrors = [];
 
         if (env.DB) {
           try {
             const u = await env.DB.prepare("SELECT COUNT(*) as count FROM users").first();
-            const g = await env.DB.prepare("SELECT COUNT(*) as total_gens, AVG(duration_seconds) as avg_duration FROM generations").first();
-            const r = await env.DB.prepare("SELECT SUM(stars_amount) as total_stars, SUM(usd_amount) as total_usd FROM telemetry_events").first();
+            const g = await env.DB.prepare("SELECT COUNT(*) as total_gens, AVG(duration_seconds) as avg_duration FROM generations WHERE status = 'SUCCESS' AND duration_seconds IS NOT NULL AND duration_seconds > 0").first();
+            const errCount = await env.DB.prepare("SELECT COUNT(*) as total_errors FROM error_logs WHERE created_at >= datetime('now', '-1 day')").first();
             const t = await env.DB.prepare(`
               SELECT id, user_id as user, source, preset_id as preset, prompt, input_image_url as input_img, output_image_url as output_img, status, duration_seconds as duration, created_at
               FROM generations 
+              WHERE id NOT LIKE 'task_synth%'
               ORDER BY created_at DESC 
-              LIMIT 15
+              LIMIT 25
             `).all();
             const eLogs = await env.DB.prepare(`
               SELECT id, context, error_message, user_id, details, created_at
               FROM error_logs
               ORDER BY created_at DESC
-              LIMIT 10
+              LIMIT 15
             `).all();
             
             if (u && u.count !== null && u.count !== undefined) totalUsers = u.count;
             if (g && g.total_gens !== null && g.total_gens !== undefined) totalGens = g.total_gens;
-            if (g && g.avg_duration) avgDur = Number(g.avg_duration).toFixed(1);
-            if (r && r.total_stars) totalStars = r.total_stars;
-            if (r && r.total_usd) totalUsd = r.total_usd;
+            if (g && g.avg_duration !== null && g.avg_duration !== undefined && g.avg_duration > 0) avgDur = Number(g.avg_duration).toFixed(1);
+            if (errCount && errCount.total_errors !== null && errCount.total_errors !== undefined) totalErrors = errCount.total_errors;
             if (t && t.results && t.results.length) recentTasks = t.results;
             if (eLogs && eLogs.results && eLogs.results.length) recentErrors = eLogs.results;
           } catch(e) {
@@ -1247,12 +1267,12 @@ export default {
 
         return jsonResponse({
           status: "success",
+          auth_user: authUserLabel,
           total_users: totalUsers,
           total_generations: totalGens,
-          total_stars: totalStars,
-          total_usd: totalUsd,
-          avg_duration: avgDur === "0.0" ? "28.5" : avgDur,
-          modal_status: "READY (Nvidia A10G 24GB)",
+          total_errors: totalErrors,
+          avg_duration: avgDur,
+          modal_status: "Modal A10G: READY",
           recent_tasks: recentTasks,
           recent_errors: recentErrors
         });
@@ -1499,6 +1519,7 @@ export default {
             const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
                                 cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id ||
                                 session.lastPhotoFileId;
+            const targetTaskId = session.currentTaskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
             if (photoFileId) {
               const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN (4K MACRO)" : presetKey.toUpperCase();
@@ -1530,13 +1551,15 @@ export default {
 
                   if (mData.status === "success" && mData.result_base64) {
                     await recordGenerationInD1(env, {
+                      id: targetTaskId,
                       userId,
                       source: "telegram_bot",
                       presetId: presetKey,
                       prompt,
                       inputBase64: photoBase64,
                       outputBase64: mData.result_base64,
-                      duration
+                      duration,
+                      status: "SUCCESS"
                     });
 
                     await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*\nДвигун: Qwen 2.5 DiT 20B`, {
@@ -1550,8 +1573,21 @@ export default {
                     throw new Error(mData.message || "Model failed to return image result");
                   }
                 } catch(err) {
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                   console.error("TG generation error:", err);
                   logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                  await recordGenerationInD1(env, {
+                    id: targetTaskId,
+                    userId,
+                    source: "telegram_bot",
+                    presetId: presetKey,
+                    prompt,
+                    inputBase64: null,
+                    outputBase64: null,
+                    duration,
+                    status: "FAILED",
+                    errorMessage: err.message
+                  });
                   await sendTgMessage(chatId, "⚠️ Помилка генерації: " + err.message);
                 }
               })());
@@ -1578,6 +1614,7 @@ export default {
             const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
                                 cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id ||
                                 session.lastPhotoFileId;
+            const targetTaskId = session.currentTaskId || `dance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
             if (photoFileId) {
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
@@ -1608,13 +1645,15 @@ export default {
 
                   if (mData.status === "success" && mData.result_video_base64) {
                     await recordGenerationInD1(env, {
+                      id: targetTaskId,
                       userId,
                       source: "telegram_bot",
                       presetId: `dance_${templateId}`,
                       prompt: `TikTok Dance: ${danceName}`,
                       inputBase64: photoBase64,
                       outputBase64: mData.result_video_base64,
-                      duration
+                      duration,
+                      status: "SUCCESS"
                     });
 
                     await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *${danceName}*\nДвигун: AuraDance 2.5 DiT`, {
@@ -1628,7 +1667,20 @@ export default {
                     throw new Error(mData.message || "Dance engine failed to return video result");
                   }
                 } catch (err) {
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                   logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
+                  await recordGenerationInD1(env, {
+                    id: targetTaskId,
+                    userId,
+                    source: "telegram_bot",
+                    presetId: `dance_${templateId}`,
+                    prompt: `TikTok Dance: ${danceName}`,
+                    inputBase64: null,
+                    outputBase64: null,
+                    duration,
+                    status: "FAILED",
+                    errorMessage: err.message
+                  });
                   await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
                 }
               })());
@@ -1789,8 +1841,6 @@ export default {
           if (photos && photos.length > 0) {
             const bestPhoto = photos[photos.length - 1];
             const session = await getTgSession(env, userId);
-            await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id });
-
             const caption = update.message.caption || "";
             const isDanceCaption = caption.toLowerCase().includes("танець") || caption.toLowerCase().includes("dance") || caption.startsWith("/dance");
 
@@ -1798,7 +1848,8 @@ export default {
             if (session.pendingAction === "dance") {
               const templateId = session.templateId || "viral_house_shuffle";
               const danceName = session.danceName || "TikTok Dance";
-              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null });
+              const targetTaskId = session.currentTaskId || `dance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null, currentTaskId: targetTaskId });
 
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
               sendTgChatAction(chatId, "upload_video");
@@ -1827,13 +1878,15 @@ export default {
 
                   if (mData.status === "success" && mData.result_video_base64) {
                     await recordGenerationInD1(env, {
+                      id: targetTaskId,
                       userId,
                       source: "telegram_bot",
                       presetId: `dance_${templateId}`,
                       prompt: `TikTok Dance: ${danceName}`,
                       inputBase64: photoBase64,
                       outputBase64: mData.result_video_base64,
-                      duration
+                      duration,
+                      status: "SUCCESS"
                     });
 
                     await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *${danceName}*\nДвигун: AuraDance 2.5 DiT`, {
@@ -1847,7 +1900,20 @@ export default {
                     throw new Error(mData.message || "Dance engine failed to return video result");
                   }
                 } catch (err) {
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                   logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
+                  await recordGenerationInD1(env, {
+                    id: targetTaskId,
+                    userId,
+                    source: "telegram_bot",
+                    presetId: `dance_${templateId}`,
+                    prompt: `TikTok Dance: ${danceName}`,
+                    inputBase64: null,
+                    outputBase64: null,
+                    duration,
+                    status: "FAILED",
+                    errorMessage: err.message
+                  });
                   await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
                 }
               })());
@@ -1864,8 +1930,9 @@ export default {
                 ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes"
                 : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes";
               const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN (4K MACRO)" : presetKey.toUpperCase();
+              const targetTaskId = session.currentTaskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null });
+              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null, currentTaskId: targetTaskId });
 
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${styleLabel})...*\n\n_${isUltraHd ? "Формуємо індивідуальні пори, пушкове волосся та мікрорельєф шкіри (~25-30с)" : "Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)"}_`);
               sendTgChatAction(chatId, "upload_photo");
@@ -1894,13 +1961,15 @@ export default {
 
                   if (mData.status === "success" && mData.result_base64) {
                     await recordGenerationInD1(env, {
+                      id: targetTaskId,
                       userId,
                       source: "telegram_bot",
                       presetId: presetKey,
                       prompt,
                       inputBase64: photoBase64,
                       outputBase64: mData.result_base64,
-                      duration
+                      duration,
+                      status: "SUCCESS"
                     });
 
                     await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*\nДвигун: Qwen 2.5 DiT 20B`, {
@@ -1914,7 +1983,20 @@ export default {
                     throw new Error(mData.message || "Model failed to return image result");
                   }
                 } catch (err) {
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                   logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                  await recordGenerationInD1(env, {
+                    id: targetTaskId,
+                    userId,
+                    source: "telegram_bot",
+                    presetId: presetKey,
+                    prompt,
+                    inputBase64: null,
+                    outputBase64: null,
+                    duration,
+                    status: "FAILED",
+                    errorMessage: err.message
+                  });
                   await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
                 }
               })());
@@ -1922,6 +2004,9 @@ export default {
             }
 
             if (isDanceCaption) {
+              const targetTaskId = session.currentTaskId || `dance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, currentTaskId: targetTaskId });
+
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець за вашим запитом...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
               ctx.waitUntil((async () => {
                 const startTime = Date.now();
@@ -1948,13 +2033,15 @@ export default {
 
                   if (mData.status === "success" && mData.result_video_base64) {
                     await recordGenerationInD1(env, {
+                      id: targetTaskId,
                       userId,
                       source: "telegram_bot",
                       presetId: "dance_viral_house_shuffle",
                       prompt: "TikTok Dance: Viral House Shuffle",
                       inputBase64: photoBase64,
                       outputBase64: mData.result_video_base64,
-                      duration
+                      duration,
+                      status: "SUCCESS"
                     });
 
                     await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *Viral House Shuffle*\nДвигун: AuraDance 2.5 DiT`, {
@@ -1968,7 +2055,20 @@ export default {
                     throw new Error(mData.message || "Dance engine failed to return video result");
                   }
                 } catch (err) {
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                   logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
+                  await recordGenerationInD1(env, {
+                    id: targetTaskId,
+                    userId,
+                    source: "telegram_bot",
+                    presetId: "dance_viral_house_shuffle",
+                    prompt: "TikTok Dance: Viral House Shuffle",
+                    inputBase64: null,
+                    outputBase64: null,
+                    duration,
+                    status: "FAILED",
+                    errorMessage: err.message
+                  });
                   await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
                 }
               })());
@@ -1976,6 +2076,9 @@ export default {
             }
 
             if (caption) {
+              const targetTaskId = session.currentTaskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, currentTaskId: targetTaskId });
+
               // Directly generate with user caption
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${caption}"_...`);
               // Async execution
@@ -2005,13 +2108,15 @@ export default {
 
                   if (mData.status === "success" && mData.result_base64) {
                     await recordGenerationInD1(env, {
+                      id: targetTaskId,
                       userId,
                       source: "telegram_bot",
                       presetId: "custom",
                       prompt: caption,
                       inputBase64: photoBase64,
                       outputBase64: mData.result_base64,
-                      duration
+                      duration,
+                      status: "SUCCESS"
                     });
 
                     await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nОпис: _"${caption}"_`);
@@ -2019,11 +2124,33 @@ export default {
                     throw new Error(mData.message || "Model failed to return image result");
                   }
                 } catch (err) {
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                   logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                  await recordGenerationInD1(env, {
+                    id: targetTaskId,
+                    userId,
+                    source: "telegram_bot",
+                    presetId: "custom",
+                    prompt: caption,
+                    inputBase64: null,
+                    outputBase64: null,
+                    duration,
+                    status: "FAILED",
+                    errorMessage: err.message
+                  });
                   await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
                 }
               })());
             } else {
+              // Generate stable Task ID for incoming pending photo
+              const taskId = `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              await setTgSession(env, userId, { 
+                lastPhotoFileId: bestPhoto.file_id, 
+                currentTaskId: taskId,
+                pendingAction: null, 
+                pendingStyle: null 
+              });
+
               // Journal the incoming photo in D1 as PENDING so it immediately appears in Dashboard Visual Journal
               ctx.waitUntil((async () => {
                 try {
@@ -2035,13 +2162,14 @@ export default {
                     const photoBase64 = arrayBufferToBase64(photoBuffer);
 
                     await recordGenerationInD1(env, {
+                      id: taskId,
                       userId,
                       source: "telegram_bot",
                       presetId: "awaiting_selection",
                       prompt: "Фото завантажено (очікує вибору пресету)",
                       inputBase64: photoBase64,
                       outputBase64: null,
-                      duration: 0.0,
+                      duration: null,
                       status: "PENDING"
                     });
                   }
@@ -2087,6 +2215,7 @@ export default {
             const replyPhotos = update.message.reply_to_message?.photo;
             const replyPhotoId = replyPhotos && replyPhotos.length > 0 ? replyPhotos[replyPhotos.length - 1].file_id : null;
             const photoFileId = replyPhotoId || session.lastPhotoFileId;
+            const targetTaskId = session.currentTaskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
             if (photoFileId) {
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${text}"_...\n\n_Зберігаємо 100% рис обличчя та деталізацію (~20-25с)_`);
@@ -2117,13 +2246,15 @@ export default {
 
                   if (mData.status === "success" && mData.result_base64) {
                     await recordGenerationInD1(env, {
+                      id: targetTaskId,
                       userId,
                       source: "telegram_bot",
                       presetId: "custom",
                       prompt: text,
                       inputBase64: photoBase64,
                       outputBase64: mData.result_base64,
-                      duration
+                      duration,
+                      status: "SUCCESS"
                     });
 
                     await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nОпис: _"${text}"_\nДвигун: Qwen 2.5 DiT 20B`, {
@@ -2137,8 +2268,21 @@ export default {
                     throw new Error(mData.message || "Model failed to return image result");
                   }
                 } catch(err) {
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                   console.error("Custom prompt TG generation error:", err);
                   logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                  await recordGenerationInD1(env, {
+                    id: targetTaskId,
+                    userId,
+                    source: "telegram_bot",
+                    presetId: "custom",
+                    prompt: text,
+                    inputBase64: null,
+                    outputBase64: null,
+                    duration,
+                    status: "FAILED",
+                    errorMessage: err.message
+                  });
                   await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
                 }
               })());

@@ -61,8 +61,8 @@
                     <span id="adminUserLabel">Admin</span>
                 </div>
 
-                <button onclick="fetchStats()" class="p-2 glass-card hover:bg-gray-800 rounded-xl text-gray-300 hover:text-white transition" title="Оновити дані">
-                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                <button onclick="fetchStats(true)" id="headerRefreshBtn" class="p-2 glass-card hover:bg-gray-800 rounded-xl text-gray-300 hover:text-white transition" title="Оновити дані">
+                    <i data-lucide="refresh-cw" id="headerRefreshIcon" class="w-4 h-4"></i>
                 </button>
                 <button onclick="lockDashboard()" class="p-2 glass-card hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-xl transition" title="Вийти / Заблокувати">
                     <i data-lucide="log-out" class="w-4 h-4"></i>
@@ -70,7 +70,7 @@
             </div>
         </div>
 
-        <!-- 4 Key Metric Cards -->
+        <!-- 4 Key Authentic Metric Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <!-- Total Users -->
             <div class="glass-card rounded-2xl p-6 space-y-2">
@@ -80,39 +80,48 @@
                 </div>
                 <div class="text-3xl font-extrabold text-white" id="statUsers">0</div>
                 <p class="text-xs text-emerald-400 flex items-center gap-1">
-                    <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
-                    <span>Web + Telegram</span>
+                    <i data-lucide="database" class="w-3.5 h-3.5"></i>
+                    <span>Всього в базі D1</span>
                 </p>
             </div>
 
             <!-- Total Generations -->
             <div class="glass-card rounded-2xl p-6 space-y-2">
                 <div class="flex items-center justify-between text-gray-400">
-                    <span class="text-xs font-semibold uppercase tracking-wider">Всього генерацій</span>
+                    <span class="text-xs font-semibold uppercase tracking-wider">Успішних генерацій</span>
                     <i data-lucide="sparkles" class="w-4 h-4 text-pink-400"></i>
                 </div>
                 <div class="text-3xl font-extrabold text-white" id="statGens">0</div>
-                <p class="text-xs text-gray-400">Qwen 2.5 DiT 20B</p>
+                <p class="text-xs text-emerald-400 flex items-center gap-1">
+                    <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                    <span>Статус: SUCCESS</span>
+                </p>
             </div>
 
-            <!-- Revenue (Stars + Stripe) -->
+            <!-- Errors (24h) -->
             <div class="glass-card rounded-2xl p-6 space-y-2">
                 <div class="flex items-center justify-between text-gray-400">
-                    <span class="text-xs font-semibold uppercase tracking-wider">Дохід (Stars + USD)</span>
-                    <i data-lucide="coins" class="w-4 h-4 text-amber-400"></i>
+                    <span class="text-xs font-semibold uppercase tracking-wider">Помилок (24h)</span>
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
                 </div>
-                <div class="text-3xl font-extrabold text-white" id="statRevenue">$0.00</div>
-                <p class="text-xs text-amber-400" id="statStarsSub">⭐ 0 Stars / $0.00 Stripe</p>
+                <div class="text-3xl font-extrabold text-white" id="statErrors">0</div>
+                <p class="text-xs text-gray-400 flex items-center gap-1">
+                    <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+                    <span id="statErrorsSub">Збої GPU / Telegram / API</span>
+                </p>
             </div>
 
             <!-- Avg Duration -->
             <div class="glass-card rounded-2xl p-6 space-y-2">
                 <div class="flex items-center justify-between text-gray-400">
-                    <span class="text-xs font-semibold uppercase tracking-wider">Швидкість генерації</span>
+                    <span class="text-xs font-semibold uppercase tracking-wider">Сер. швидкість GPU</span>
                     <i data-lucide="clock" class="w-4 h-4 text-cyan-400"></i>
                 </div>
-                <div class="text-3xl font-extrabold text-white" id="statDuration">28.5 s</div>
-                <p class="text-xs text-cyan-400">22 кроки (Euler Simple)</p>
+                <div class="text-3xl font-extrabold text-white" id="statDuration">—</div>
+                <p class="text-xs text-cyan-400 flex items-center gap-1">
+                    <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
+                    <span>Реальний час виконання</span>
+                </p>
             </div>
         </div>
 
@@ -138,7 +147,7 @@
                             <th class="py-3 px-4">Результат AI</th>
                             <th class="py-3 px-4">Стиль / Промпт</th>
                             <th class="py-3 px-4">Статус</th>
-                            <th class="py-3 px-4">Час</th>
+                            <th class="py-3 px-4">Дата / Час GPU</th>
                         </tr>
                     </thead>
                     <tbody id="tasksTableBody" class="divide-y divide-gray-800/60">
@@ -164,8 +173,8 @@
                     </h3>
                     <p class="text-xs text-gray-400">Останні збої генерації, помилки парсингу Telegram та збої GPU з бази D1</p>
                 </div>
-                <button onclick="fetchStats()" class="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-xl glass-card transition flex items-center gap-1.5">
-                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Оновити логи
+                <button onclick="fetchStats(true)" class="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-xl glass-card transition flex items-center gap-1.5">
+                    <i data-lucide="refresh-cw" id="refreshLogsIcon" class="w-3.5 h-3.5"></i> Оновити логи
                 </button>
             </div>
 
@@ -390,14 +399,37 @@
             document.getElementById('imageModal').classList.remove('flex');
         }
 
-        async function fetchStats() {
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '—';
+            try {
+                const s = dateStr.includes('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z';
+                const d = new Date(s);
+                return d.toLocaleString('uk-UA', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit' 
+                });
+            } catch(e) {
+                return dateStr;
+            }
+        }
+
+        async function fetchStats(isManual = false) {
+            const headerIcon = document.getElementById('headerRefreshIcon');
+            const logsIcon = document.getElementById('refreshLogsIcon');
+            if (isManual) {
+                if (headerIcon) headerIcon.classList.add('animate-spin');
+                if (logsIcon) logsIcon.classList.add('animate-spin');
+            }
             try {
                 const headers = { 'Content-Type': 'application/json' };
                 if (currentAdminToken) {
                     headers['Authorization'] = `Bearer ${currentAdminToken}`;
                 }
 
-                const res = await fetch('/api/stats', { headers });
+                const res = await fetch('/api/stats?_t=' + Date.now(), { headers, cache: 'no-store' });
                 
                 if (res.status === 401 || res.status === 403) {
                     document.getElementById('accessDeniedCard').classList.remove('hidden');
@@ -429,9 +461,23 @@
                 
                 document.getElementById('statUsers').innerText = data.total_users || 0;
                 document.getElementById('statGens').innerText = data.total_generations || 0;
-                document.getElementById('statDuration').innerText = (data.avg_duration || 28.5) + ' s';
-                document.getElementById('statRevenue').innerText = `$${(data.total_usd || 0).toFixed(2)}`;
-                document.getElementById('statStarsSub').innerText = `⭐ ${data.total_stars || 0} Stars / $${(data.total_usd || 0).toFixed(2)} Stripe`;
+                
+                const errCount = data.total_errors || 0;
+                const statErrEl = document.getElementById('statErrors');
+                if (statErrEl) {
+                    statErrEl.innerText = errCount;
+                    if (errCount > 0) {
+                        statErrEl.className = "text-3xl font-extrabold text-amber-400";
+                    } else {
+                        statErrEl.className = "text-3xl font-extrabold text-white";
+                    }
+                }
+
+                const durEl = document.getElementById('statDuration');
+                if (durEl) {
+                    durEl.innerText = (data.avg_duration !== null && data.avg_duration !== undefined) ? `${data.avg_duration} s` : '—';
+                }
+
                 document.getElementById('gpuStatus').innerText = data.modal_status || "Modal A10G: READY";
 
                 const tbody = document.getElementById('tasksTableBody');
@@ -451,6 +497,18 @@
                                 : `<img src="${t.output_img}" onclick="openImageModal('${t.output_img}', 'AI Generated Result')" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\\'w-12 h-12 rounded-lg bg-gray-900 border border-purple-500/20 flex items-center justify-center text-xs text-purple-400\\\'>✨</div>';" class="w-12 h-12 object-cover rounded-lg border border-purple-500/50 hover:scale-110 transition cursor-pointer shadow-lg shadow-purple-500/20">`)
                             : `<div class="w-12 h-12 rounded-lg bg-gray-900 border border-purple-500/20 flex items-center justify-center text-xs text-purple-400"><i data-lucide="${t.status === 'PENDING' ? 'clock' : 'sparkles'}" class="w-5 h-5"></i></div>`;
 
+                        let statusBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400">SUCCESS</span>`;
+                        if (t.status === 'PENDING') {
+                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400">PENDING</span>`;
+                        } else if (t.status === 'FAILED') {
+                            statusBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-400">FAILED</span>`;
+                        }
+
+                        const createdFormatted = formatDateTime(t.created_at);
+                        const durDisplay = (t.duration !== null && t.duration !== undefined && Number(t.duration) > 0)
+                            ? `${Number(t.duration).toFixed(1)}s`
+                            : (t.status === 'PENDING' ? '⏳ очікує вибору' : (t.status === 'SUCCESS' ? '—' : '❌ помилка'));
+
                         return `
                             <tr class="hover:bg-gray-900/40 transition">
                                 <td class="py-3 px-4">
@@ -468,11 +526,26 @@
                                     <span class="font-medium text-purple-300 block">${t.preset || 'Custom'}</span>
                                     <span class="text-xs text-gray-500 truncate max-w-[200px] block">${t.prompt || ''}</span>
                                 </td>
-                                <td class="py-3 px-4"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${t.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">${t.status}</span></td>
-                                <td class="py-3 px-4 text-xs text-gray-400">${t.duration ? t.duration + 's' : 'щойно'}</td>
+                                <td class="py-3 px-4">${statusBadge}</td>
+                                <td class="py-3 px-4">
+                                    <div class="flex flex-col gap-0.5">
+                                        <span class="text-xs font-mono text-white whitespace-nowrap">${createdFormatted}</span>
+                                        <span class="text-[11px] font-mono ${t.status === 'SUCCESS' ? 'text-cyan-400' : (t.status === 'PENDING' ? 'text-amber-400' : 'text-red-400')} whitespace-nowrap">${durDisplay}</span>
+                                    </div>
+                                </td>
                             </tr>
                         `;
                     }).join('');
+                    lucide.createIcons();
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="py-12 text-center text-gray-500">
+                                <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-gray-600"></i>
+                                <span>Завдань ще немає. Завантажте перше фото через Telegram або Web!</span>
+                            </td>
+                        </tr>
+                    `;
                     lucide.createIcons();
                 }
 
@@ -484,7 +557,7 @@
                         errBadge.classList.remove('hidden');
                     }
                     errTbody.innerHTML = data.recent_errors.map(e => {
-                        const dateStr = new Date(e.created_at).toLocaleString();
+                        const dateStr = formatDateTime(e.created_at);
                         let badgeColor = "bg-red-500/10 text-red-400 border-red-500/30";
                         if (e.context === 'telegram_dance_video') badgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/30";
                         else if (e.context === 'telegram_photo') badgeColor = "bg-cyan-500/10 text-cyan-400 border-cyan-500/30";
@@ -518,6 +591,9 @@
                 }
             } catch (e) {
                 console.error('Failed to load stats:', e);
+            } finally {
+                if (headerIcon) headerIcon.classList.remove('animate-spin');
+                if (logsIcon) logsIcon.classList.remove('animate-spin');
             }
         }
 
