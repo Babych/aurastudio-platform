@@ -68,7 +68,7 @@ async function callModalWithFallback(endpoints, payload) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(45000)
+        signal: AbortSignal.timeout(90000)
       });
       if (res.ok) {
         const data = await res.json();

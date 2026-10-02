@@ -42,6 +42,7 @@ jobs:
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
         run: |
           python -m modal deploy modal/video_dance_service.py
+          python -m modal deploy modal/modal_qwen_service.py
 
       - name: "Deploy to Modal Cloud GPU Secondary"
         continue-on-error: true
@@ -50,3 +51,4 @@ jobs:
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET_SECONDARY }}
         run: |
           python -m modal deploy modal/video_dance_service.py
+          python -m modal deploy modal/modal_qwen_service.py

@@ -100,7 +100,7 @@ class DanceRequest(BaseModel):
     image=video_image,
     gpu="A10G",
     timeout=300,
-    scaledown_window=45
+    scaledown_window=300
 )
 class VideoDanceEngine:
     @modal.enter()
