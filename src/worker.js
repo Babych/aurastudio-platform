@@ -48,8 +48,8 @@ function logCriticalError(env, ctx, context, errorMsg, userId = null, details = 
 
 // Modal Multi-Account Failover Endpoints (Auto load-balancing across accounts)
 const MODAL_PHOTO_ENDPOINTS = [
-  "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
-  "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
+  "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
+  "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
 ];
 
 const MODAL_VIDEO_ENDPOINTS = [
@@ -65,7 +65,8 @@ async function callModalWithFallback(endpoints, payload) {
       const res = await fetch(ep, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(45000)
       });
       if (res.ok) {
         const data = await res.json();
