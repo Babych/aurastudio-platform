@@ -371,6 +371,14 @@ async function recordGenerationInD1(env, { id, userId, source = 'telegram_bot', 
     return taskId;
   } catch (err) {
     console.error("recordGenerationInD1 error:", err);
+    try {
+      if (env && env.DB) {
+        await env.DB.prepare(`
+          INSERT INTO error_logs (context, error_message, details)
+          VALUES ('record_generation_d1', ?, ?)
+        `).bind(err.message, err.stack || null).run();
+      }
+    } catch(e) {}
   }
 }
 
@@ -1481,6 +1489,14 @@ export default {
               status: "FAILED",
               errorMessage: err.message
             });
+            try {
+              if (env && env.DB) {
+                await env.DB.prepare(`
+                  INSERT INTO error_logs (context, error_message, details)
+                  VALUES ('smoke_test_error', ?, ?)
+                `).bind(err.message, err.stack || null).run();
+              }
+            } catch(e) {}
           }
         })());
 
