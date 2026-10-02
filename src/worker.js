@@ -1443,7 +1443,7 @@ export default {
               image_base64: sampleBase64,
               prompt: prompt,
               negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-              steps: 20,
+              steps: 14,
               cfg: 1.95,
               seed: 888424
             });
@@ -1717,7 +1717,7 @@ export default {
             const presetKey = data.replace("preset_", "");
             const prompt = GLOBAL_PRESETS[presetKey] || "enhance photo to studio magazine portrait";
             const isUltraHd = presetKey === "ultrahd_skin";
-            const steps = isUltraHd ? 28 : 22;
+            const steps = isUltraHd ? 20 : 16;
             const negPrompt = isUltraHd
               ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes"
               : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes";
@@ -2419,7 +2419,7 @@ export default {
                     image_base64: photoData.base64,
                     prompt: text,
                     negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-                    steps: 22,
+                    steps: 16,
                     cfg: 1.95,
                     seed: 888424
                   });
