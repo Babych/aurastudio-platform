@@ -53,6 +53,9 @@ class EditRequest(BaseModel):
     steps: int = 25
     cfg: float = 3.4
     seed: int = 424242
+    telegram_bot_token: str | None = None
+    telegram_chat_id: int | str | None = None
+    telegram_caption: str | None = None
 
 def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str = "", steps: int = 25, cfg: float = 3.4, seed: int = 424242) -> bytes:
     os.makedirs("/root/ComfyUI/input", exist_ok=True)
@@ -273,7 +276,14 @@ class QwenEditor:
     def api_edit(self, req: EditRequest):
         try:
             ensure_comfyui_running()
-            image_bytes = base64.b64decode(req.image_base64)
+            raw_b64 = req.image_base64
+            if "base64," in raw_b64:
+                raw_b64 = raw_b64.split("base64,")[1]
+            raw_b64 = raw_b64.strip()
+            pad_len = len(raw_b64) % 4
+            if pad_len != 0:
+                raw_b64 += "=" * (4 - pad_len)
+            image_bytes = base64.b64decode(raw_b64)
             result_bytes = execute_qwen_workflow(
                 image_bytes=image_bytes,
                 prompt=req.prompt,
@@ -282,6 +292,33 @@ class QwenEditor:
                 cfg=req.cfg,
                 seed=req.seed
             )
+            # Direct Telegram Delivery straight from GPU node (bypasses Cloudflare Workers timeouts)
+            if req.telegram_bot_token and req.telegram_chat_id:
+                try:
+                    boundary = "----WebKitFormBoundary" + str(int(time.time()*1000))
+                    caption_text = req.telegram_caption or "✨ Результат готовий!"
+                    form_bytes = (
+                        f"--{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="chat_id"\r\n\r\n{req.telegram_chat_id}\r\n'
+                        f"--{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="caption"\r\n\r\n{caption_text}\r\n'
+                        f"--{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="parse_mode"\r\n\r\nMarkdown\r\n'
+                        f"--{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="photo"; filename="result.png"\r\n'
+                        f"Content-Type: image/png\r\n\r\n"
+                    ).encode("utf-8") + result_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+                    tg_req = urllib.request.Request(
+                        f"https://api.telegram.org/bot{req.telegram_bot_token}/sendPhoto",
+                        data=form_bytes,
+                        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}
+                    )
+                    with urllib.request.urlopen(tg_req, timeout=30) as tg_resp:
+                        print(f"[+] Direct Telegram delivery successful: {tg_resp.status}")
+                except Exception as tg_err:
+                    print(f"[-] Direct Telegram delivery warning: {tg_err}")
+
             return {
                 "status": "success",
                 "result_base64": base64.b64encode(result_bytes).decode("utf-8")
