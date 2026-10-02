@@ -47,9 +47,7 @@ async function logCriticalError(env, ctx, context, errorMsg, userId = null, deta
 // Modal Multi-Account Failover Endpoints (Auto load-balancing across accounts)
 const MODAL_PHOTO_ENDPOINTS = [
   "https://dmytrobbch--qwen-image-edit-service-qweneditor-api-edit.modal.run",
-  "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run",
-  "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
-  "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
+  "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run"
 ];
 
 const MODAL_VIDEO_ENDPOINTS = [
@@ -122,7 +120,8 @@ async function sendTgMessageHelper(botToken, chatId, text, extra = {}) {
 async function sendTgPhotoHelper(botToken, chatId, photoUrlOrBase64, caption, extra = {}) {
   try {
     let res, data;
-    if (photoUrlOrBase64.startsWith("data:") || !photoUrlOrBase64.startsWith("http")) {
+    const isBase64 = photoUrlOrBase64.startsWith("data:") || (!photoUrlOrBase64.startsWith("http") && photoUrlOrBase64.length > 500);
+    if (isBase64) {
       const base64Data = photoUrlOrBase64.replace(/^data:image\/\w+;base64,/, "").replace(/\s/g, "");
       const binaryStr = atob(base64Data);
       const bytes = new Uint8Array(binaryStr.length);
