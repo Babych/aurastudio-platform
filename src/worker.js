@@ -59,6 +59,18 @@ const MODAL_VIDEO_ENDPOINTS = [
   "https://memory1024--aurastudio-video-dance-service-videodanceeng-753eb3.modal.run"
 ];
 
+const GLOBAL_PRESETS = {
+  ultrahd_skin: "extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft studio lighting, 85mm f/1.4 lens, razor-sharp focus",
+  linkedin: "change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting",
+  old_money: "change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers",
+  blonde: "change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights",
+  bali: "change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting",
+  cyberpunk: "change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing reflections",
+  muppet: "convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo",
+  goofy3d: "change style to funny 3D animated caricature character with exaggerated goofy facial expression and bright vibrant colors",
+  retro90s: "transform into unhinged 90s meme character, wild spiky mohawk hair, retro vintage clothing, funny candid expression"
+};
+
 // Helper: Call Modal with automatic account failover
 async function callModalWithFallback(endpoints, payload) {
   let lastErr = "";
@@ -1381,7 +1393,7 @@ export default {
         }
 
         const presetKey = url.searchParams.get("preset") || "linkedin";
-        const prompt = PRESETS[presetKey]?.prompt || "change clothes to sharp tailored navy suit, keep exact same person, 100% exact original face, natural skin texture";
+        const prompt = GLOBAL_PRESETS[presetKey] || "change clothes to sharp tailored navy suit, keep exact same person, 100% exact original face, natural skin texture";
         const taskId = `smoke_test_${Date.now()}`;
         const startTime = Date.now();
 
@@ -1648,19 +1660,7 @@ export default {
           // Handle Preset Generation from message photo or session
           if (data.startsWith("preset_")) {
             const presetKey = data.replace("preset_", "");
-            const presetPrompts = {
-              ultrahd_skin: "extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft studio lighting, 85mm f/1.4 lens, razor-sharp focus",
-              linkedin: "change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting",
-              old_money: "change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers",
-              blonde: "change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights",
-              bali: "change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting",
-              cyberpunk: "change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing reflections",
-              muppet: "convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo",
-              goofy3d: "change style to funny 3D animated caricature character with exaggerated goofy facial expression and bright vibrant colors",
-              retro90s: "transform into unhinged 90s meme character, wild spiky mohawk hair, retro vintage clothing, funny candid expression"
-            };
-
-            const prompt = presetPrompts[presetKey] || "enhance photo to studio magazine portrait";
+            const prompt = GLOBAL_PRESETS[presetKey] || "enhance photo to studio magazine portrait";
             const isUltraHd = presetKey === "ultrahd_skin";
             const steps = isUltraHd ? 28 : 22;
             const negPrompt = isUltraHd
