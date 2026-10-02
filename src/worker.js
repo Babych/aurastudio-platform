@@ -122,6 +122,49 @@ function isUserAdmin(userId, username, email, env) {
   return false;
 }
 
+// Helper: Get persistent Telegram user session from D1
+async function getTgSession(env, userId) {
+  if (env && env.DB) {
+    try {
+      const row = await env.DB.prepare("SELECT * FROM telegram_sessions WHERE user_id = ?").bind(userId).first();
+      if (row) {
+        return {
+          lastPhotoFileId: row.last_photo_file_id,
+          pendingAction: row.pending_action,
+          pendingStyle: row.pending_style,
+          templateId: row.pending_style,
+          presetKey: row.pending_style
+        };
+      }
+    } catch(e) {
+      console.error("D1 getTgSession error:", e);
+    }
+  }
+  return tgUserSessions.get(userId) || {};
+}
+
+// Helper: Set persistent Telegram user session in D1
+async function setTgSession(env, userId, data) {
+  const current = tgUserSessions.get(userId) || {};
+  const updated = { ...current, ...data };
+  tgUserSessions.set(userId, updated);
+  if (env && env.DB) {
+    try {
+      await env.DB.prepare(`
+        INSERT OR REPLACE INTO telegram_sessions (user_id, last_photo_file_id, pending_action, pending_style, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).bind(
+        userId,
+        updated.lastPhotoFileId || updated.last_photo_file_id || null,
+        updated.pendingAction || updated.pending_action || null,
+        updated.pendingStyle || updated.templateId || updated.presetKey || null
+      ).run();
+    } catch(e) {
+      console.error("D1 setTgSession error:", e);
+    }
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1276,13 +1319,14 @@ export default {
 
             const prompt = presetPrompts[presetKey] || "enhance photo to studio magazine portrait";
             
-            const session = tgUserSessions.get(chatId) || {};
+            const session = await getTgSession(env, userId);
             const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
                                 cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id ||
                                 session.lastPhotoFileId;
 
             if (photoFileId) {
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${presetKey.toUpperCase()})...*\n\n_Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)_`);
+              sendTgChatAction(chatId, "upload_photo");
 
               ctx.waitUntil((async () => {
                 try {
@@ -1321,12 +1365,7 @@ export default {
                 }
               })());
             } else {
-              session.pendingAction = "preset";
-              session.presetKey = presetKey;
-              session.prompt = prompt;
-              session.timestamp = Date.now();
-              tgUserSessions.set(chatId, session);
-
+              await setTgSession(env, userId, { pendingAction: "preset", presetKey, prompt });
               await sendTgMessage(chatId, `✅ Обрано стиль *${presetKey.toUpperCase()}*!\n\n📸 Тепер надішліть сюди своє селфі або фото для трансформації.`);
             }
             return jsonResponse({ ok: true });
@@ -1343,13 +1382,14 @@ export default {
             };
             const danceName = danceNames[templateId] || "TikTok Dance";
 
-            const session = tgUserSessions.get(chatId) || {};
+            const session = await getTgSession(env, userId);
             const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
                                 cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id ||
                                 session.lastPhotoFileId;
 
             if (photoFileId) {
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
+              sendTgChatAction(chatId, "upload_video");
 
               ctx.waitUntil((async () => {
                 try {
@@ -1388,12 +1428,7 @@ export default {
                 }
               })());
             } else {
-              session.pendingAction = "dance";
-              session.templateId = templateId;
-              session.danceName = danceName;
-              session.timestamp = Date.now();
-              tgUserSessions.set(chatId, session);
-
+              await setTgSession(env, userId, { pendingAction: "dance", templateId, danceName });
               await sendTgMessage(chatId, `✅ Обрано стиль *${danceName}*!\n\n📸 Тепер надішліть сюди фото людини (бажано по пояс або в повний зріст), щоб згенерувати танець.`);
             }
             return jsonResponse({ ok: true });
@@ -1547,10 +1582,8 @@ export default {
           // Handle Photo Upload in Telegram
           if (photos && photos.length > 0) {
             const bestPhoto = photos[photos.length - 1];
-            const session = tgUserSessions.get(chatId) || {};
-            session.lastPhotoFileId = bestPhoto.file_id;
-            session.lastPhotoTime = Date.now();
-            tgUserSessions.set(chatId, session);
+            const session = await getTgSession(env, userId);
+            await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id });
 
             const caption = update.message.caption || "";
             const isDanceCaption = caption.toLowerCase().includes("танець") || caption.toLowerCase().includes("dance") || caption.startsWith("/dance");
@@ -1559,10 +1592,11 @@ export default {
             if (session.pendingAction === "dance") {
               const templateId = session.templateId || "viral_house_shuffle";
               const danceName = session.danceName || "TikTok Dance";
-              delete session.pendingAction;
-              tgUserSessions.set(chatId, session);
+              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null });
 
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
+              sendTgChatAction(chatId, "upload_video");
+
               ctx.waitUntil((async () => {
                 try {
                   const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
@@ -1605,10 +1639,11 @@ export default {
             if (session.pendingAction === "preset") {
               const presetKey = session.presetKey || "linkedin";
               const prompt = session.prompt || "enhance photo to studio magazine portrait";
-              delete session.pendingAction;
-              tgUserSessions.set(chatId, session);
+              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null });
 
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${presetKey.toUpperCase()})...*\n\n_Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)_`);
+              sendTgChatAction(chatId, "upload_photo");
+
               ctx.waitUntil((async () => {
                 try {
                   const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
