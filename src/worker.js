@@ -1181,66 +1181,131 @@ export default {
         if (!botToken) throw new Error("Bot token secret not configured");
 
         const sendTgMessage = async (chatId, text, extra = {}) => {
-          return fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown", ...extra })
-          });
+          try {
+            const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown", ...extra })
+            });
+            const data = await res.json();
+            if (!data.ok && data.description && data.description.includes("can't parse entities")) {
+              // Retry without parse_mode to guarantee delivery
+              return await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, text: text.replace(/[*_`\[\]]/g, ""), ...extra })
+              });
+            }
+            return res;
+          } catch(e) {
+            console.error("sendTgMessage error:", e);
+          }
         };
 
         const sendTgPhoto = async (chatId, photoUrlOrBase64, caption, extra = {}) => {
-          // If Base64, convert to FormData binary upload
-          if (photoUrlOrBase64.startsWith("data:") || !photoUrlOrBase64.startsWith("http")) {
-            const base64Data = photoUrlOrBase64.replace(/^data:image\/\w+;base64,/, "");
-            const binaryStr = atob(base64Data);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-            
-            const formData = new FormData();
-            formData.append("chat_id", chatId.toString());
-            formData.append("caption", caption);
-            formData.append("parse_mode", "Markdown");
-            formData.append("photo", new Blob([bytes], { type: "image/png" }), "result.png");
-            if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
+          try {
+            if (photoUrlOrBase64.startsWith("data:") || !photoUrlOrBase64.startsWith("http")) {
+              const base64Data = photoUrlOrBase64.replace(/^data:image\/\w+;base64,/, "");
+              const binaryStr = atob(base64Data);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+              
+              const formData = new FormData();
+              formData.append("chat_id", chatId.toString());
+              formData.append("caption", caption);
+              formData.append("parse_mode", "Markdown");
+              formData.append("photo", new Blob([bytes], { type: "image/png" }), "result.png");
+              if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
 
-            return fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+              const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                method: "POST",
+                body: formData
+              });
+              const data = await res.json();
+              if (!data.ok && data.description && data.description.includes("can't parse entities")) {
+                const fd2 = new FormData();
+                fd2.append("chat_id", chatId.toString());
+                fd2.append("caption", caption.replace(/[*_`\[\]]/g, ""));
+                fd2.append("photo", new Blob([bytes], { type: "image/png" }), "result.png");
+                if (extra.reply_markup) fd2.append("reply_markup", JSON.stringify(extra.reply_markup));
+                return await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                  method: "POST",
+                  body: fd2
+                });
+              }
+              return res;
+            }
+
+            const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
               method: "POST",
-              body: formData
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, photo: photoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
             });
+            const data = await res.json();
+            if (!data.ok && data.description && data.description.includes("can't parse entities")) {
+              return await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, photo: photoUrlOrBase64, caption: caption.replace(/[*_`\[\]]/g, ""), ...extra })
+              });
+            }
+            return res;
+          } catch (e) {
+            console.error("sendTgPhoto error:", e);
           }
-
-          return fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, photo: photoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
-          });
         };
 
         const sendTgVideo = async (chatId, videoUrlOrBase64, caption, extra = {}) => {
-          if (videoUrlOrBase64.startsWith("data:") || !videoUrlOrBase64.startsWith("http")) {
-            const base64Data = videoUrlOrBase64.replace(/^data:video\/\w+;base64,/, "");
-            const binaryStr = atob(base64Data);
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-            
-            const formData = new FormData();
-            formData.append("chat_id", chatId.toString());
-            formData.append("caption", caption);
-            formData.append("parse_mode", "Markdown");
-            formData.append("video", new Blob([bytes], { type: "video/mp4" }), "dance.mp4");
-            if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
+          try {
+            if (videoUrlOrBase64.startsWith("data:") || !videoUrlOrBase64.startsWith("http")) {
+              const base64Data = videoUrlOrBase64.replace(/^data:video\/\w+;base64,/, "");
+              const binaryStr = atob(base64Data);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+              
+              const formData = new FormData();
+              formData.append("chat_id", chatId.toString());
+              formData.append("caption", caption);
+              formData.append("parse_mode", "Markdown");
+              formData.append("video", new Blob([bytes], { type: "video/mp4" }), "dance.mp4");
+              if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
 
-            return fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+              const res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+                method: "POST",
+                body: formData
+              });
+              const data = await res.json();
+              if (!data.ok && data.description && data.description.includes("can't parse entities")) {
+                const fd2 = new FormData();
+                fd2.append("chat_id", chatId.toString());
+                fd2.append("caption", caption.replace(/[*_`\[\]]/g, ""));
+                fd2.append("video", new Blob([bytes], { type: "video/mp4" }), "dance.mp4");
+                if (extra.reply_markup) fd2.append("reply_markup", JSON.stringify(extra.reply_markup));
+                return await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+                  method: "POST",
+                  body: fd2
+                });
+              }
+              return res;
+            }
+
+            const res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
               method: "POST",
-              body: formData
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, video: videoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
             });
+            const data = await res.json();
+            if (!data.ok && data.description && data.description.includes("can't parse entities")) {
+              return await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, video: videoUrlOrBase64, caption: caption.replace(/[*_`\[\]]/g, ""), ...extra })
+              });
+            }
+            return res;
+          } catch (e) {
+            console.error("sendTgVideo error:", e);
           }
-
-          return fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, video: videoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
-          });
         };
 
         const sendTgChatAction = async (chatId, action = "upload_photo") => {
