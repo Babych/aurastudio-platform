@@ -19,7 +19,7 @@ models_volume = modal.Volume.from_name("qwen-models-volume", create_if_missing=T
 # Build custom container image with CUDA, FlashAttention & ComfyUI dependencies
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .apt_install("git", "ffmpeg", "libsm6", "libxext6", "wget", "curl", "build-essential")
+    .apt_install("git", "ffmpeg", "libsm6", "libxext6", "wget", "curl", "build-essential", "procps")
     .pip_install(
         "torch>=2.4.0",
         "torchvision",
@@ -44,91 +44,120 @@ image = (
         # Remove default models dir so we can symlink /models volume cleanly
         "rm -rf /root/ComfyUI/models"
     )
+    .env({"PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"})
 )
 
 class EditRequest(BaseModel):
     image_base64: str
     prompt: str
     negative_prompt: str = ""
-    steps: int = 25
-    cfg: float = 3.4
-    seed: int = 424242
+    steps: int = 22
+    cfg: float = 2.8
+    seed: int = 888424
     telegram_bot_token: str | None = None
     telegram_chat_id: int | str | None = None
     telegram_caption: str | None = None
 
-def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str = "", steps: int = 25, cfg: float = 3.4, seed: int = 424242) -> bytes:
+def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str = "", steps: int = 22, cfg: float = 2.8, seed: int = 888424) -> bytes:
     os.makedirs("/root/ComfyUI/input", exist_ok=True)
     input_filename = f"input_{int(time.time()*1000)}.png"
     input_path = f"/root/ComfyUI/input/{input_filename}"
 
-    # Proportional 16-px alignment
     pil_raw = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     orig_w, orig_h = pil_raw.size
     
-    max_side = 640
+    # 1024px Full-Scale High-Fidelity (ITX Master Standard)
+    max_side = 1024
     scale = min(max_side / max(orig_w, orig_h), 1.0)
-    target_w = max(512, int(orig_w * scale) // 16 * 16)
-    target_h = max(512, int(orig_h * scale) // 16 * 16)
+    target_w = max(64, int(orig_w * scale) // 16 * 16)
+    target_h = max(64, int(orig_h * scale) // 16 * 16)
 
     resized_img = pil_raw.resize((target_w, target_h), Image.Resampling.LANCZOS)
     resized_img.save(input_path, format="PNG")
 
-    print(f"[*] Executing Official Qwen Workflow ({target_w}x{target_h} | Steps: {steps} | CFG: {cfg})...")
+    print(f"[*] [6-Bit Master High-Fidelity DiT] Executing Q6_K ({target_w}x{target_h} | Steps: {steps} | CFG: {cfg})...")
 
     workflow = {
         "1": {
-            "class_type": "LoadImage",
             "inputs": {
-                "image": input_filename
-            }
+                "unet_name": "qwen-image-edit-2511-uncensored-Q6_K.gguf"
+            },
+            "class_type": "UnetLoaderGGUF"
+        },
+        "2": {
+            "inputs": {
+                "model": ["1", 0],
+                "shift": 3.1
+            },
+            "class_type": "ModelSamplingAuraFlow"
+        },
+        "3": {
+            "inputs": {
+                "model": ["2", 0],
+                "strength": 1.0
+            },
+            "class_type": "CFGNorm"
         },
         "4": {
-            "class_type": "VAELoader",
-            "inputs": {
-                "vae_name": "qwen_image_vae.safetensors"
-            }
-        },
-        "26": {
-            "class_type": "CLIPLoaderGGUF",
             "inputs": {
                 "clip_name": "Qwen2.5-VL-7B-Instruct-q4_0.gguf",
                 "type": "qwen_image"
-            }
+            },
+            "class_type": "CLIPLoaderGGUF"
         },
-        "28": {
-            "class_type": "UnetLoaderGGUF",
+        "5": {
             "inputs": {
-                "unet_name": "qwen-image-edit-2511-uncensored-Q4_K_M.gguf"
-            }
+                "vae_name": "qwen_image_vae.safetensors"
+            },
+            "class_type": "VAELoader"
         },
-        "16": {
-            "class_type": "TextEncodeQwenImageEdit",
+        "6": {
             "inputs": {
-                "prompt": prompt,
-                "clip": ["26", 0],
-                "vae": ["4", 0],
-                "image": ["1", 0]
-            }
+                "image": input_filename,
+                "upload": "image"
+            },
+            "class_type": "LoadImage"
         },
-        "25": {
-            "class_type": "TextEncodeQwenImageEdit",
+        "7": {
             "inputs": {
-                "prompt": negative_prompt or "blurry, low quality, distorted, bad anatomy, artifacts, malformed, low resolution",
-                "clip": ["26", 0],
-                "vae": ["4", 0],
-                "image": ["1", 0]
-            }
+                "clip": ["4", 0],
+                "vae": ["5", 0],
+                "image1": ["6", 0],
+                "prompt": prompt
+            },
+            "class_type": "TextEncodeQwenImageEditPlus"
         },
-        "30": {
-            "class_type": "VAEEncode",
+        "8": {
             "inputs": {
-                "pixels": ["1", 0],
-                "vae": ["4", 0]
-            }
+                "conditioning": ["7", 0],
+                "reference_latents_method": "index_timestep_zero"
+            },
+            "class_type": "FluxKontextMultiReferenceLatentMethod"
+        },
+        "9": {
+            "inputs": {
+                "clip": ["4", 0],
+                "vae": ["5", 0],
+                "image1": ["6", 0],
+                "prompt": negative_prompt or "blurry, low quality, distorted, bad anatomy, artifacts, malformed, low resolution"
+            },
+            "class_type": "TextEncodeQwenImageEditPlus"
+        },
+        "10": {
+            "inputs": {
+                "conditioning": ["9", 0],
+                "reference_latents_method": "index_timestep_zero"
+            },
+            "class_type": "FluxKontextMultiReferenceLatentMethod"
+        },
+        "11": {
+            "inputs": {
+                "pixels": ["6", 0],
+                "vae": ["5", 0]
+            },
+            "class_type": "VAEEncode"
         },
         "12": {
-            "class_type": "KSampler",
             "inputs": {
                 "seed": seed,
                 "steps": steps,
@@ -136,25 +165,26 @@ def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str 
                 "sampler_name": "euler",
                 "scheduler": "simple",
                 "denoise": 1.0,
-                "model": ["28", 0],
-                "positive": ["16", 0],
-                "negative": ["25", 0],
-                "latent_image": ["30", 0]
-            }
+                "model": ["3", 0],
+                "positive": ["8", 0],
+                "negative": ["10", 0],
+                "latent_image": ["11", 0]
+            },
+            "class_type": "KSampler"
         },
         "13": {
-            "class_type": "VAEDecode",
             "inputs": {
                 "samples": ["12", 0],
-                "vae": ["4", 0]
-            }
+                "vae": ["5", 0]
+            },
+            "class_type": "VAEDecode"
         },
         "14": {
-            "class_type": "SaveImage",
             "inputs": {
-                "filename_prefix": "modal_qwen_out",
+                "filename_prefix": "modal_qwen_master_out",
                 "images": ["13", 0]
-            }
+            },
+            "class_type": "SaveImage"
         }
     }
 
@@ -171,35 +201,42 @@ def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str 
     
     # Poll for completion
     start_time = time.time()
-    print(f"[*] Queued Prompt ID: {prompt_id} on A10G GPU...")
+    print(f"[*] [6-Bit Master Pipeline] Queued Prompt ID: {prompt_id} on L40S GPU...")
 
-    while time.time() - start_time < 300:
+    while time.time() - start_time < 850:
         try:
             h_req = urllib.request.Request(f"http://127.0.0.1:8188/history/{prompt_id}")
             h_resp = urllib.request.urlopen(h_req)
             h_data = json.loads(h_resp.read().decode('utf-8'))
             if prompt_id in h_data:
-                outputs = h_data[prompt_id].get("outputs", {})
+                p_info = h_data[prompt_id]
+                status_info = p_info.get("status", {})
+                if status_info.get("status_str") == "error":
+                    err_msgs = status_info.get("messages", [])
+                    raise RuntimeError(f"ComfyUI execution error: {err_msgs}")
+
+                outputs = p_info.get("outputs", {})
                 if "14" in outputs:
                     images = outputs["14"].get("images", [])
                     if images:
                         out_filename = images[0]["filename"]
                         out_subfolder = images[0].get("subfolder", "")
                         out_path = f"/root/ComfyUI/output/{out_subfolder}/{out_filename}" if out_subfolder else f"/root/ComfyUI/output/{out_filename}"
-                        print(f"[+] Qwen generation finished in {round(time.time()-start_time, 2)}s! File: {out_path}")
+                        print(f"[+] [6-Bit Master Pipeline] Generation finished in {round(time.time()-start_time, 2)}s! File: {out_path}")
                         with open(out_path, "rb") as f:
                             return f.read()
-        except Exception:
-            pass
+        except Exception as e:
+            if "ComfyUI execution error" in str(e):
+                raise
         time.sleep(0.5)
 
-    raise TimeoutError("Qwen execution exceeded 300s timeout")
+    raise TimeoutError("Execution exceeded 850s timeout")
 
 @app.cls(
     image=image,
     gpu="L40S", # 48GB VRAM Nvidia Ada Lovelace GPU
     volumes={"/models": models_volume},
-    timeout=600,
+    timeout=900,
     scaledown_window=300, # Keep warm for 5 minutes
 )
 class QwenEditor:
@@ -244,32 +281,27 @@ class QwenEditor:
             f = hf_hub_download(repo_id=repo_id, filename="split/text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf")
             shutil.copy2(f, mmproj_path)
 
-        # 4. Uncensored DiT Q4_K_M
-        dit_path = "/models/diffusion_models/qwen-image-edit-2511-uncensored-Q4_K_M.gguf"
+        # 4. Uncensored High-Fidelity DiT Q6_K (15.2 GB - Master 6-Bit Precision)
+        dit_path = "/models/diffusion_models/qwen-image-edit-2511-uncensored-Q6_K.gguf"
         if not os.path.exists(dit_path) or os.path.getsize(dit_path) < 1000000:
-            print("[+] Downloading qwen-image-edit-2511-uncensored-Q4_K_M.gguf...")
-            f = hf_hub_download(repo_id=repo_id, filename="split/diffusion_models/qwen-image-edit-2511-uncensored-Q4_K_M.gguf")
+            print("[+] Downloading qwen-image-edit-2511-uncensored-Q6_K.gguf (6-bit Master)...")
+            f = hf_hub_download(repo_id=repo_id, filename="split/diffusion_models/qwen-image-edit-2511-uncensored-Q6_K.gguf")
             shutil.copy2(f, dit_path)
 
-        # Cross-directory symlinks for seamless ComfyUI loader lookup
         for folder in ["/models/unet"]:
-            dst = os.path.join(folder, "qwen-image-edit-2511-uncensored-Q4_K_M.gguf")
+            dst = os.path.join(folder, "qwen-image-edit-2511-uncensored-Q6_K.gguf")
             if not os.path.exists(dst):
                 try: os.symlink(dit_path, dst)
                 except Exception: pass
 
-        for folder in ["/models/clip", "/models/clip_vision"]:
-            dst_mmproj = os.path.join(folder, "Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf")
-            if not os.path.exists(dst_mmproj):
-                try: os.symlink(mmproj_path, dst_mmproj)
-                except Exception: pass
-            dst_vl = os.path.join(folder, "Qwen2.5-VL-7B-Instruct-q4_0.gguf")
-            if not os.path.exists(dst_vl):
-                try: os.symlink(vl_path, dst_vl)
+        # Also support Q4_K_M fallback link if needed
+        for folder in ["/models/unet", "/models/diffusion_models"]:
+            dst4 = os.path.join(folder, "qwen-image-edit-2511-uncensored-Q4_K_M.gguf")
+            if not os.path.exists(dst4):
+                try: os.symlink(dit_path, dst4)
                 except Exception: pass
 
-        models_volume.commit()
-        print("[+] All Qwen models and symlinks ready in persistent volume!")
+        # Start background ComfyUI daemon
         ensure_comfyui_running()
 
     @modal.fastapi_endpoint(method="POST")
@@ -284,6 +316,7 @@ class QwenEditor:
             if pad_len != 0:
                 raw_b64 += "=" * (4 - pad_len)
             image_bytes = base64.b64decode(raw_b64)
+
             result_bytes = execute_qwen_workflow(
                 image_bytes=image_bytes,
                 prompt=req.prompt,
@@ -292,6 +325,7 @@ class QwenEditor:
                 cfg=req.cfg,
                 seed=req.seed
             )
+
             # Direct Telegram Delivery straight from GPU node (bypasses Cloudflare Workers timeouts)
             if req.telegram_bot_token and req.telegram_chat_id:
                 try:
