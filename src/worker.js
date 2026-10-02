@@ -1350,9 +1350,8 @@ export default {
             const t = await env.DB.prepare(`
               SELECT id, user_id as user, source, preset_id as preset, prompt, input_image_url as input_img, output_image_url as output_img, status, duration_seconds as duration, created_at
               FROM generations 
-              WHERE id NOT LIKE 'task_synth%'
-              ORDER BY created_at DESC 
-              LIMIT 25
+              ORDER BY rowid DESC 
+              LIMIT 30
             `).all();
             const eLogs = await env.DB.prepare(`
               SELECT id, context, error_message, user_id, details, created_at
