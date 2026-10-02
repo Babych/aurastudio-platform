@@ -202,6 +202,20 @@
                         Designer Style Presets (Slash Commands)
                     </div>
                     
+                    <button onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-amber-600/20 flex items-center justify-between transition group border border-amber-500/20 bg-amber-500/5">
+                        <div class="flex items-center gap-2.5">
+                            <span class="text-lg">💎</span>
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-xs font-bold text-amber-200 group-hover:text-amber-100">/ultrahd</span>
+                                    <span class="px-1.5 py-0.2 bg-amber-500/30 text-amber-300 text-[9px] font-bold rounded">20 ⭐️</span>
+                                </div>
+                                <span class="text-[11px] text-gray-400 block">4K Macro Pores, peach fuzz vellus hair & hyper-realistic skin</span>
+                            </div>
+                        </div>
+                        <span class="text-[10px] text-amber-400 font-mono font-bold">Ultra Pro</span>
+                    </button>
+
                     <button onclick="applySlashPreset('headshot_linkedin', '💼 /linkedin', 'change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">💼</span>
@@ -316,6 +330,9 @@
             <!-- Quick Suggestion Style Chips (Claude / Gemini style) -->
             <div class="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
                 <span class="text-gray-500 text-[11px]">Quick styles:</span>
+                <button onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus')" class="px-3 py-1.5 rounded-xl glass-card border border-amber-500/50 text-amber-300 hover:text-white transition flex items-center gap-1 bg-amber-500/10 shadow-sm shadow-amber-500/20">
+                    <span>💎</span> <span>/ultrahd</span> <span class="text-[9px] bg-amber-500/30 px-1 rounded font-bold">20 ⭐️</span>
+                </button>
                 <button onclick="applySlashPreset('meme_muppet', '🎭 /muppet', 'convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo')" class="px-3 py-1.5 rounded-xl glass-card border border-pink-500/40 text-pink-300 hover:text-white transition flex items-center gap-1">
                     <span>🎭</span> <span>/muppet</span>
                 </button>
@@ -587,6 +604,16 @@
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Preset 0: Ultra-HD Skin Pro (Featured) -->
+                <div onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus'); closeCatalogModal();" class="glass-card rounded-2xl p-3 border-amber-500/40 hover:border-amber-400 transition cursor-pointer group relative overflow-hidden">
+                    <div class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold z-10">💎 20 Stars</div>
+                    <div class="h-44 rounded-xl bg-gray-900 overflow-hidden mb-3">
+                        <img src="/assets/presets/placeholder.webp" class="w-full h-full object-cover group-hover:scale-105 transition">
+                    </div>
+                    <h4 class="font-bold text-sm text-white group-hover:text-amber-300">💎 Ultra-HD Cinema Skin (4K)</h4>
+                    <p class="text-[11px] text-gray-400">Micro-pores, peach fuzz vellus hair & 8K subsurface scattering.</p>
+                </div>
+
                 <!-- Preset 1 -->
                 <div onclick="applySlashPreset('headshot_linkedin', '💼 /linkedin', 'change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting'); closeCatalogModal();" class="glass-card rounded-2xl p-3 hover:border-purple-500 transition cursor-pointer group">
                     <div class="h-44 rounded-xl bg-gray-900 overflow-hidden mb-3">

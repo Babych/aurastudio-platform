@@ -1307,6 +1307,7 @@ export default {
           if (data.startsWith("preset_")) {
             const presetKey = data.replace("preset_", "");
             const presetPrompts = {
+              ultrahd_skin: "extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft studio lighting, 85mm f/1.4 lens, razor-sharp focus",
               linkedin: "change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting",
               old_money: "change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers",
               blonde: "change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights",
@@ -1318,6 +1319,11 @@ export default {
             };
 
             const prompt = presetPrompts[presetKey] || "enhance photo to studio magazine portrait";
+            const isUltraHd = presetKey === "ultrahd_skin";
+            const steps = isUltraHd ? 28 : 22;
+            const negPrompt = isUltraHd
+              ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes"
+              : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes";
             
             const session = await getTgSession(env, userId);
             const photoFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
@@ -1325,7 +1331,8 @@ export default {
                                 session.lastPhotoFileId;
 
             if (photoFileId) {
-              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${presetKey.toUpperCase()})...*\n\n_Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)_`);
+              const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN (4K MACRO)" : presetKey.toUpperCase();
+              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${styleLabel})...*\n\n_${isUltraHd ? "Формуємо індивідуальні пори, пушкове волосся та мікрорельєф шкіри (~25-30с)" : "Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)"}_`);
               sendTgChatAction(chatId, "upload_photo");
 
               ctx.waitUntil((async () => {
@@ -1342,14 +1349,14 @@ export default {
                   const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
                     image_base64: photoBase64,
                     prompt: prompt,
-                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-                    steps: 22,
+                    negative_prompt: negPrompt,
+                    steps: steps,
                     cfg: 1.95,
                     seed: 888424
                   });
 
                   if (mData.status === "success" && mData.result_base64) {
-                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${presetKey.toUpperCase()}*\nДвигун: Qwen 2.5 DiT 20B`, {
+                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*\nДвигун: Qwen 2.5 DiT 20B`, {
                       reply_markup: {
                         inline_keyboard: [
                           [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
@@ -1366,7 +1373,8 @@ export default {
               })());
             } else {
               await setTgSession(env, userId, { pendingAction: "preset", presetKey, prompt });
-              await sendTgMessage(chatId, `✅ Обрано стиль *${presetKey.toUpperCase()}*!\n\n📸 Тепер надішліть сюди своє селфі або фото для трансформації.`);
+              const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN" : presetKey.toUpperCase();
+              await sendTgMessage(chatId, `✅ Обрано стиль *${styleLabel}*!\n\n📸 Тепер надішліть сюди своє селфі або фото для трансформації.`);
             }
             return jsonResponse({ ok: true });
           }
@@ -1544,7 +1552,7 @@ export default {
               if (sub) subStatus = `Активна (${sub.plan_tier.toUpperCase()})`;
             }
 
-            await sendTgMessage(chatId, `⭐️ *Ваш баланс та підписка:*\n\n• ⭐️ *Баланс Stars:* ${balance} XTR\n• 📦 *Статус підписки:* ${subStatus}\n\n_Ви можете використовувати баланс для генерації фото (10 Stars) та TikTok танців (40 Stars) на веб-сайті або в боті._`, {
+            await sendTgMessage(chatId, `⭐️ *Ваш баланс та підписка:*\n\n• ⭐️ *Баланс Stars:* ${balance} XTR\n• 📦 *Статус підписки:* ${subStatus}\n\n_Використовуйте баланс:_\n• 📸 Студійне фото: *10 Stars*\n• 💎 Ultra-HD Cinema Skin (4K): *20 Stars*\n• 🕺 TikTok Відео-танець: *40 Stars*`, {
               reply_markup: {
                 inline_keyboard: [
                   [
@@ -1563,10 +1571,11 @@ export default {
           // Handle /help command or "help" / "допомога"
           if (lowerText === "/help" || lowerText.startsWith("/help") || lowerText === "help" || lowerText === "допомога" || lowerText === "інструкція") {
             const helpText = "ℹ️ *AuraStudio AI — Довідка та команди:*\n\n" +
-              "🕺 */dance* — Створити вірусне танцювальне відео з фото\n" +
+              "💎 *Ultra-HD Cinema Skin (4K)* — Макро-пори, пушкове волосся та 8K текстура (20 ⭐️)\n" +
+              "🕺 */dance* — Створити вірусне танцювальне відео з фото (40 ⭐️)\n" +
               "🏠 */start* — Головне меню та відкриття Web App\n" +
-              "⭐️ */balance* — Перевірити баланс Telegram Stars та підписку\n\n" +
-              "📸 *Як створити фото:* просто надішліть будь-яке фото сюди та оберіть стиль (LinkedIn, Old Money, Blonde, тощо) або додайте підпис до фото.\n\n" +
+              "⭐️ */balance* — Баланс Telegram Stars та тарифи\n\n" +
+              "📸 *Як створити фото:* просто надішліть будь-яке фото сюди та оберіть стиль (💎 Ultra-HD Skin, LinkedIn, Old Money, Blonde) або додайте текстовий опис.\n\n" +
               "🌐 *Веб-версія:* https://aurastudio-ai.memory1024.workers.dev";
             await sendTgMessage(chatId, helpText, {
               reply_markup: {
@@ -1639,9 +1648,16 @@ export default {
             if (session.pendingAction === "preset") {
               const presetKey = session.presetKey || "linkedin";
               const prompt = session.prompt || "enhance photo to studio magazine portrait";
+              const isUltraHd = presetKey === "ultrahd_skin";
+              const steps = isUltraHd ? 28 : 22;
+              const negPrompt = isUltraHd
+                ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes"
+                : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes";
+              const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN (4K MACRO)" : presetKey.toUpperCase();
+
               await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null });
 
-              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${presetKey.toUpperCase()})...*\n\n_Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)_`);
+              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${styleLabel})...*\n\n_${isUltraHd ? "Формуємо індивідуальні пори, пушкове волосся та мікрорельєф шкіри (~25-30с)" : "Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)"}_`);
               sendTgChatAction(chatId, "upload_photo");
 
               ctx.waitUntil((async () => {
@@ -1657,14 +1673,14 @@ export default {
                   const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
                     image_base64: photoBase64,
                     prompt: prompt,
-                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-                    steps: 22,
+                    negative_prompt: negPrompt,
+                    steps: steps,
                     cfg: 1.95,
                     seed: 888424
                   });
 
                   if (mData.status === "success" && mData.result_base64) {
-                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${presetKey.toUpperCase()}*\nДвигун: Qwen 2.5 DiT 20B`, {
+                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*\nДвигун: Qwen 2.5 DiT 20B`, {
                       reply_markup: {
                         inline_keyboard: [
                           [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
@@ -1757,20 +1773,20 @@ export default {
                 reply_markup: {
                   inline_keyboard: [
                     [
-                      { text: "🕺 TikTok Танець (Shuffle)", callback_data: "dance_viral_house_shuffle" },
-                      { text: "💃 TikTok Танець (K-Pop)", callback_data: "dance_kpop_hiphop_groove" }
+                      { text: "💎 Ultra-HD Macro Skin (4K)", callback_data: "preset_ultrahd_skin" },
+                      { text: "🕺 TikTok Танець", callback_data: "dance_viral_house_shuffle" }
                     ],
                     [
                       { text: "💼 LinkedIn Pro", callback_data: "preset_linkedin" },
                       { text: "🍸 Old Money", callback_data: "preset_old_money" }
                     ],
                     [
-                      { text: "🎭 Muppet Meme", callback_data: "preset_muppet" },
-                      { text: "🤪 3D Goofy", callback_data: "preset_goofy3d" }
-                    ],
-                    [
                       { text: "👱‍♀️ Blonde Restyle", callback_data: "preset_blonde" },
                       { text: "🌴 Bali Sunset", callback_data: "preset_bali" }
+                    ],
+                    [
+                      { text: "🎭 Muppet Meme", callback_data: "preset_muppet" },
+                      { text: "🤪 3D Goofy", callback_data: "preset_goofy3d" }
                     ],
                     [
                       { text: "🌐 Відкрити Web Studio", url: "https://aurastudio-ai.memory1024.workers.dev" },
