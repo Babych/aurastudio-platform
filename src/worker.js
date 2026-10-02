@@ -1445,70 +1445,67 @@ export default {
           }
         }
 
-        ctx.waitUntil((async () => {
-          try {
-            const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
-              image_base64: sampleBase64,
-              prompt: prompt,
-              negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-              steps: 14,
-              cfg: 1.95,
-              seed: 888424
-            });
+        let mData = null;
+        try {
+          mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+            image_base64: sampleBase64,
+            prompt: prompt,
+            negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+            steps: 12,
+            cfg: 1.95,
+            seed: 888424
+          });
+        } catch (mErr) {
+          const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+          await recordGenerationInD1(env, {
+            id: taskId,
+            userId: "smoke_tester_999",
+            source: "smoke_test",
+            presetId: presetKey,
+            prompt,
+            inputBase64: sampleBase64,
+            outputBase64: null,
+            duration,
+            status: "FAILED",
+            errorMessage: mErr.message
+          });
+          return jsonResponse({
+            status: "failed",
+            task_id: taskId,
+            duration: `${duration}s`,
+            error: mErr.message
+          }, 500);
+        }
 
-            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-            if (mData.status === "success" && mData.result_base64) {
-              await recordGenerationInD1(env, {
-                id: taskId,
-                userId: "smoke_tester_999",
-                source: "smoke_test",
-                presetId: presetKey,
-                prompt,
-                inputBase64: sampleBase64,
-                outputBase64: mData.result_base64,
-                duration,
-                status: "SUCCESS"
-              });
-              console.log(`[SmokeTest] Task ${taskId} finished successfully in ${duration}s!`);
-            } else {
-              throw new Error(mData.message || "Model failed to return output");
-            }
-          } catch (err) {
-            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-            console.error(`[SmokeTest] Task ${taskId} failed:`, err);
-            await recordGenerationInD1(env, {
-              id: taskId,
-              userId: "smoke_tester_999",
-              source: "smoke_test",
-              presetId: presetKey,
-              prompt,
-              inputBase64: sampleBase64,
-              outputBase64: null,
-              duration,
-              status: "FAILED",
-              errorMessage: err.message
-            });
-            try {
-              if (env && env.DB) {
-                await env.DB.prepare(`
-                  INSERT INTO error_logs (context, error_message, details)
-                  VALUES ('smoke_test_error', ?, ?)
-                `).bind(err.message, err.stack || null).run();
-              }
-            } catch(e) {}
-          }
-        })());
+        if (mData.status === "success" && mData.result_base64) {
+          await recordGenerationInD1(env, {
+            id: taskId,
+            userId: "smoke_tester_999",
+            source: "smoke_test",
+            presetId: presetKey,
+            prompt,
+            inputBase64: sampleBase64,
+            outputBase64: mData.result_base64,
+            duration,
+            status: "SUCCESS"
+          });
 
-        return jsonResponse({
-          status: "queued",
-          task_id: taskId,
-          preset: presetKey,
-          message: "Smoke test dispatched to GPU. Poll /api/smoke-test?task_id=" + taskId,
-          check_url: `/api/smoke-test?task_id=${taskId}`
-        });
+          return jsonResponse({
+            status: "success",
+            task_id: taskId,
+            preset: presetKey,
+            duration: `${duration}s`,
+            gpu_engine: "Qwen 2.5 DiT (Modal L40S 48GB)",
+            message: "Smoke test generation completed and recorded in D1 successfully",
+            output_preview_size: mData.result_base64.length
+          });
+        } else {
+          throw new Error(mData.message || "Model failed to return output");
+        }
       } catch (err) {
-        console.error("Smoke test trigger failed:", err);
+        console.error("Smoke test failed:", err);
         return jsonResponse({
           status: "failed",
           error: err.message
