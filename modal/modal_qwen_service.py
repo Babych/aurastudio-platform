@@ -63,7 +63,7 @@ def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str 
     pil_raw = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     orig_w, orig_h = pil_raw.size
     
-    max_side = 768
+    max_side = 640
     scale = min(max_side / max(orig_w, orig_h), 1.0)
     target_w = max(512, int(orig_w * scale) // 16 * 16)
     target_h = max(512, int(orig_h * scale) // 16 * 16)
