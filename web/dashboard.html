@@ -160,9 +160,13 @@
                     <h3 class="font-bold text-lg flex items-center gap-2">
                         <i data-lucide="alert-triangle" class="w-5 h-5 text-red-400"></i>
                         <span>Критичні помилки системи (System Errors)</span>
+                        <span id="errorCountBadge" class="hidden text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">0</span>
                     </h3>
-                    <p class="text-xs text-gray-400">Останні збої генерації та вебхуків з D1</p>
+                    <p class="text-xs text-gray-400">Останні збої генерації, помилки парсингу Telegram та збої GPU з бази D1</p>
                 </div>
+                <button onclick="fetchStats()" class="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-xl glass-card transition flex items-center gap-1.5">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Оновити логи
+                </button>
             </div>
 
             <div class="overflow-x-auto">
@@ -170,8 +174,8 @@
                     <thead class="text-xs uppercase bg-gray-900/60 text-gray-400 border-b border-gray-800">
                         <tr>
                             <th class="py-3 px-4">Час</th>
-                            <th class="py-3 px-4">Контекст</th>
-                            <th class="py-3 px-4">Повідомлення</th>
+                            <th class="py-3 px-4">Джерело / Контекст</th>
+                            <th class="py-3 px-4">Повідомлення про помилку</th>
                             <th class="py-3 px-4">Користувач (ID)</th>
                         </tr>
                     </thead>
@@ -453,19 +457,35 @@
                 }
 
                 const errTbody = document.getElementById('errorsTableBody');
+                const errBadge = document.getElementById('errorCountBadge');
                 if (data.recent_errors && data.recent_errors.length > 0) {
+                    if (errBadge) {
+                        errBadge.innerText = `${data.recent_errors.length} помилок`;
+                        errBadge.classList.remove('hidden');
+                    }
                     errTbody.innerHTML = data.recent_errors.map(e => {
                         const dateStr = new Date(e.created_at).toLocaleString();
+                        let badgeColor = "bg-red-500/10 text-red-400 border-red-500/30";
+                        if (e.context === 'telegram_dance_video') badgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/30";
+                        else if (e.context === 'telegram_photo') badgeColor = "bg-cyan-500/10 text-cyan-400 border-cyan-500/30";
+                        else if (e.context && e.context.includes('gpu')) badgeColor = "bg-purple-500/10 text-purple-400 border-purple-500/30";
+
                         return `
-                            <tr class="hover:bg-red-900/20 transition text-red-200/80">
-                                <td class="py-3 px-4 font-mono text-[11px]">${dateStr}</td>
-                                <td class="py-3 px-4 font-semibold text-red-400 text-xs">${e.context}</td>
-                                <td class="py-3 px-4 text-xs break-all">${e.error_message}</td>
-                                <td class="py-3 px-4 text-xs font-mono text-gray-400">${e.user_id || 'Unknown'}</td>
+                            <tr class="hover:bg-red-950/20 transition">
+                                <td class="py-3 px-4 font-mono text-[11px] text-gray-400 whitespace-nowrap">${dateStr}</td>
+                                <td class="py-3 px-4 whitespace-nowrap">
+                                    <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold border ${badgeColor}">
+                                        ${e.context || 'general'}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4 text-xs font-mono text-red-300 break-all">${e.error_message}</td>
+                                <td class="py-3 px-4 text-xs font-mono text-gray-400 whitespace-nowrap">${e.user_id ? `<span class="px-2 py-0.5 rounded bg-gray-900 border border-gray-800">${e.user_id}</span>` : '<span class="text-gray-600">—</span>'}</td>
                             </tr>
                         `;
                     }).join('');
+                    lucide.createIcons();
                 } else {
+                    if (errBadge) errBadge.classList.add('hidden');
                     errTbody.innerHTML = `
                         <tr>
                             <td colspan="4" class="py-12 text-center text-gray-500">
