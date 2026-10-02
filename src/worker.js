@@ -2081,6 +2081,76 @@ export default {
             return jsonResponse({ ok: true });
           }
 
+          // Handle Custom Text Prompt from user
+          if (text && !text.startsWith("/")) {
+            const session = await getTgSession(env, userId);
+            const replyPhotos = update.message.reply_to_message?.photo;
+            const replyPhotoId = replyPhotos && replyPhotos.length > 0 ? replyPhotos[replyPhotos.length - 1].file_id : null;
+            const photoFileId = replyPhotoId || session.lastPhotoFileId;
+
+            if (photoFileId) {
+              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${text}"_...\n\n_Зберігаємо 100% рис обличчя та деталізацію (~20-25с)_`);
+              sendTgChatAction(chatId, "upload_photo");
+
+              ctx.waitUntil((async () => {
+                const startTime = Date.now();
+                try {
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
+                  const fileData = await fileRes.json();
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
+
+                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+                  const photoBuffer = await photoBlobRes.arrayBuffer();
+                  const photoBase64 = arrayBufferToBase64(photoBuffer);
+
+                  // Call Modal GPU with multi-account failover
+                  const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+                    image_base64: photoBase64,
+                    prompt: text,
+                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+                    steps: 22,
+                    cfg: 1.95,
+                    seed: 888424
+                  });
+
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                  if (mData.status === "success" && mData.result_base64) {
+                    await recordGenerationInD1(env, {
+                      userId,
+                      source: "telegram_bot",
+                      presetId: "custom",
+                      prompt: text,
+                      inputBase64: photoBase64,
+                      outputBase64: mData.result_base64,
+                      duration
+                    });
+
+                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nОпис: _"${text}"_\nДвигун: Qwen 2.5 DiT 20B`, {
+                      reply_markup: {
+                        inline_keyboard: [
+                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
+                        ]
+                      }
+                    });
+                  } else {
+                    throw new Error(mData.message || "Model failed to return image result");
+                  }
+                } catch(err) {
+                  console.error("Custom prompt TG generation error:", err);
+                  logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                  await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
+                }
+              })());
+              return jsonResponse({ ok: true });
+            } else {
+              // No photo on file yet, remember prompt for the next incoming photo
+              await setTgSession(env, userId, { pendingAction: "preset", presetKey: "custom", prompt: text });
+              await sendTgMessage(chatId, `✅ Ваш опис збережено:\n_"${text}"_\n\n📸 Тепер надішліть сюди своє селфі або фото для генерації.`);
+              return jsonResponse({ ok: true });
+            }
+          }
+
           // Standard /start or greeting
           const welcomeText = "✨ *Ласкаво просимо до AuraStudio AI!* ✨\n\n🎨 *Студійні портрети, ділові фото та стильні луки за 30 секунд!*\n\n• 📸 *LinkedIn Pro Headshot*\n• 👗 *Old Money Aesthetic*\n• 🌴 *Bali Sunset Travel*\n\n👇 *Оберіть дію або надішліть фото:*";
           const webUrl = "https://aurastudio-ai.memory1024.workers.dev";
