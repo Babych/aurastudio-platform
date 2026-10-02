@@ -1899,10 +1899,24 @@ export default {
             const photoData = await getTgUserPhotoBase64(env, botToken, userId, explicitFileId);
 
             if (photoData && photoData.base64) {
-              const targetTaskId = photoData.taskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              const targetTaskId = `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              await setTgSession(env, userId, { currentTaskId: targetTaskId });
               const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN (4K MACRO)" : presetKey.toUpperCase();
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${styleLabel})...*\n\n_${isUltraHd ? "Формуємо індивідуальні пори, пушкове волосся та мікрорельєф шкіри (~25-30с)" : "Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)"}_`);
               sendTgChatAction(chatId, "upload_photo");
+
+              // Immediately record as PENDING in D1 so the visual journal shows it in real-time
+              ctx.waitUntil(recordGenerationInD1(env, {
+                id: targetTaskId,
+                userId,
+                source: "telegram_bot",
+                presetId: presetKey,
+                prompt,
+                inputBase64: photoData.base64,
+                outputBase64: null,
+                duration: null,
+                status: "PENDING"
+              }));
 
               ctx.waitUntil((async () => {
                 const startTime = Date.now();
@@ -2578,9 +2592,23 @@ export default {
             const photoData = await getTgUserPhotoBase64(env, botToken, userId, replyPhotoId);
 
             if (photoData && photoData.base64) {
-              const targetTaskId = photoData.taskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              const targetTaskId = `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              await setTgSession(env, userId, { currentTaskId: targetTaskId });
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${text}"_...\n\n_Зберігаємо 100% рис обличчя та деталізацію (~20-25с)_`);
               sendTgChatAction(chatId, "upload_photo");
+
+              // Immediately record as PENDING in D1 so the visual journal shows it in real-time
+              ctx.waitUntil(recordGenerationInD1(env, {
+                id: targetTaskId,
+                userId,
+                source: "telegram_bot",
+                presetId: "custom",
+                prompt: text,
+                inputBase64: photoData.base64,
+                outputBase64: null,
+                duration: null,
+                status: "PENDING"
+              }));
 
               ctx.waitUntil((async () => {
                 const startTime = Date.now();
