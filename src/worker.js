@@ -323,13 +323,12 @@ async function recordGenerationInD1(env, { id, userId, source = 'telegram_bot', 
       }
     }
 
-    const shareToken = Math.random().toString(36).substring(2, 10);
     const parsedDur = parseFloat(duration);
     const durSec = (!isNaN(parsedDur) && parsedDur > 0) ? parsedDur : null;
 
     await env.DB.prepare(`
-      INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, output_image_url, status, duration_seconds, is_shared, share_token, error_message)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, output_image_url, status, duration_seconds, error_message)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         preset_id = excluded.preset_id,
         prompt = excluded.prompt,
@@ -348,7 +347,6 @@ async function recordGenerationInD1(env, { id, userId, source = 'telegram_bot', 
       outThumb || (status === 'SUCCESS' ? "generated_image" : null),
       status,
       durSec,
-      shareToken,
       errorMessage || null
     ).run();
 
