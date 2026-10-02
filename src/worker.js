@@ -48,6 +48,8 @@ function logCriticalError(env, ctx, context, errorMsg, userId = null, details = 
 
 // Modal Multi-Account Failover Endpoints (Auto load-balancing across accounts)
 const MODAL_PHOTO_ENDPOINTS = [
+  "https://dmytrobbch--qwen-image-edit-service-qweneditor-api-edit.modal.run",
+  "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run",
   "https://dmytrobbch--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
   "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
 ];
