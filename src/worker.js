@@ -18,6 +18,18 @@ function jsonResponse(data, status = 200) {
   });
 }
 
+// Helper: Safe Base64 encoder for large ArrayBuffers (prevents stack overflow)
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  return btoa(binary);
+}
+
 // Helper: Log critical errors to D1
 function logCriticalError(env, ctx, context, errorMsg, userId = null, details = null) {
   if (env.DB) {
@@ -1185,6 +1197,16 @@ export default {
           });
         };
 
+        const sendTgChatAction = async (chatId, action = "upload_photo") => {
+          try {
+            return await fetch(`https://api.telegram.org/bot${botToken}/sendChatAction`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, action })
+            });
+          } catch(e) {}
+        };
+
         // Handle Telegram Stars Pre-Checkout Query
         if (update.pre_checkout_query) {
           await fetch(`https://api.telegram.org/bot${botToken}/answerPreCheckoutQuery`, {
@@ -1270,7 +1292,7 @@ export default {
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+                  const photoBase64 = arrayBufferToBase64(photoBuffer);
 
                   // Call Modal GPU with multi-account failover
                   const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
@@ -1337,7 +1359,7 @@ export default {
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+                  const photoBase64 = arrayBufferToBase64(photoBuffer);
 
                   // Call Modal GPU Video Dance failover
                   const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
@@ -1549,7 +1571,7 @@ export default {
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+                  const photoBase64 = arrayBufferToBase64(photoBuffer);
 
                   const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
                     image_base64: photoBase64,
@@ -1595,7 +1617,7 @@ export default {
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+                  const photoBase64 = arrayBufferToBase64(photoBuffer);
 
                   const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
                     image_base64: photoBase64,
@@ -1636,7 +1658,7 @@ export default {
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+                  const photoBase64 = arrayBufferToBase64(photoBuffer);
 
                   const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
                     image_base64: photoBase64,
@@ -1676,7 +1698,7 @@ export default {
                 const fileData = await fileRes.json();
                 const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                 const photoBuffer = await photoBlobRes.arrayBuffer();
-                const photoBase64 = btoa(String.fromCharCode(...new Uint8Array(photoBuffer)));
+                const photoBase64 = arrayBufferToBase64(photoBuffer);
 
                 // Call Modal GPU with multi-account failover
                 const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
