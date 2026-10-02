@@ -53,3 +53,7 @@ jobs:
         run: |
           python -m modal deploy modal/video_dance_service.py
           python -m modal deploy modal/modal_qwen_service.py
+
+      - name: "Run Production Integration Tests"
+        run: |
+          python tests/test_integration.py
