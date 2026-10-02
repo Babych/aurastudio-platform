@@ -267,26 +267,12 @@ class QwenEditor:
 
         models_volume.commit()
         print("[+] All Qwen models and symlinks ready in persistent volume!")
-
-        # Start ComfyUI daemon in background
-        try:
-            urllib.request.urlopen("http://127.0.0.1:8188/system_stats", timeout=1)
-        except Exception:
-            print("[*] Starting local ComfyUI daemon on GPU with SageAttention & Fast Mode...")
-            proc = subprocess.Popen([
-                "python", "/root/ComfyUI/main.py", "--listen", "127.0.0.1", "--port", "8188", "--highvram", "--fast", "--dont-upcast-attention"
-            ])
-            for _ in range(30):
-                try:
-                    urllib.request.urlopen("http://127.0.0.1:8188/system_stats", timeout=1)
-                    print("[+] ComfyUI daemon is ready!")
-                    break
-                except Exception:
-                    time.sleep(0.5)
+        ensure_comfyui_running()
 
     @modal.fastapi_endpoint(method="POST")
     def api_edit(self, req: EditRequest):
         try:
+            ensure_comfyui_running()
             image_bytes = base64.b64decode(req.image_base64)
             result_bytes = execute_qwen_workflow(
                 image_bytes=image_bytes,
@@ -306,3 +292,39 @@ class QwenEditor:
                 "message": str(e),
                 "traceback": traceback.format_exc()
             }
+
+def ensure_comfyui_running():
+    try:
+        urllib.request.urlopen("http://127.0.0.1:8188/system_stats", timeout=1)
+        return
+    except Exception:
+        pass
+
+    print("[*] Starting local ComfyUI daemon on GPU...")
+    log_file = open("/tmp/comfyui.log", "a")
+    proc = subprocess.Popen([
+        "python", "/root/ComfyUI/main.py",
+        "--listen", "127.0.0.1",
+        "--port", "8188",
+        "--highvram",
+        "--dont-upcast-attention",
+        "--disable-auto-launch"
+    ], stdout=log_file, stderr=log_file)
+
+    for i in range(60):
+        try:
+            urllib.request.urlopen("http://127.0.0.1:8188/system_stats", timeout=1)
+            print(f"[+] ComfyUI daemon is ready after {i * 0.5:.1f}s!")
+            return
+        except Exception:
+            if proc.poll() is not None:
+                log_file.flush()
+                try:
+                    with open("/tmp/comfyui.log", "r") as f:
+                        err_content = f.read()
+                except Exception:
+                    err_content = "Could not read /tmp/comfyui.log"
+                raise RuntimeError(f"ComfyUI exited prematurely with code {proc.returncode}: {err_content[-1000:]}")
+            time.sleep(0.5)
+
+    raise TimeoutError("ComfyUI daemon failed to respond within 30 seconds")
