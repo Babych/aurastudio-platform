@@ -2,23 +2,25 @@
 AuraStudio AI Video Dance & Neural Motion Retargeting Engine
 Serverless GPU Service on Modal (Nvidia L40S / A10G)
 
-Performs full neural motion retargeting & portrait dance synthesis from a reference photo
-onto a driving motion donor video (TikTok/Reels format) using LivePortrait / Neural Keypoints.
+Performs neural motion retargeting from driving donor videos onto reference portraits
+using LivePortrait & GPU accelerated video rendering.
 """
 
 import os
 import io
 import sys
+import glob
 import time
 import base64
 import tempfile
+import traceback
 import subprocess
 from typing import Optional
 from pathlib import Path
 from pydantic import BaseModel
 import modal
 
-# 1. Build Cloud GPU Container with PyTorch, CUDA 12.4, LivePortrait & HuggingFace weights
+# 1. Build Cloud GPU Container with PyTorch, CUDA 12.4, LivePortrait & Pretrained Weights
 app = modal.App("aurastudio-video-dance-service")
 
 cuda_version = "12.4.0"
@@ -29,17 +31,24 @@ tag = f"{cuda_version}-{flavor}-{os_version}"
 def download_liveportrait_weights():
     import os
     from huggingface_hub import snapshot_download
-    os.makedirs("/root/LivePortrait/pretrained_weights", exist_ok=True)
+    
+    weights_dir = "/root/LivePortrait/pretrained_weights"
+    os.makedirs(weights_dir, exist_ok=True)
+    
+    print("[Build] Downloading LivePortrait weights from HuggingFace...")
     snapshot_download(
         repo_id="KwaiVGI/LivePortrait",
-        local_dir="/root/LivePortrait/pretrained_weights",
+        local_dir=weights_dir,
         ignore_patterns=["*.md", "*.git*"]
     )
+    
+    print("[Build] Model download complete. Files:", os.listdir(weights_dir))
 
 video_image = (
     modal.Image.from_registry(f"nvidia/cuda:{tag}", add_python="3.10")
     .apt_install(
         "git",
+        "git-lfs",
         "ffmpeg",
         "libsm6",
         "libxext6",
@@ -65,10 +74,15 @@ video_image = (
         "huggingface_hub>=0.24.0",
         "fastapi[standard]>=0.115.0",
         "pydantic>=2.8.0",
+        "tyro>=0.8.5",
+        "albumentations>=1.4.0",
         "tqdm"
     )
     .run_commands(
-        "git clone https://github.com/KwaiVGI/LivePortrait.git /root/LivePortrait"
+        "git lfs install",
+        "git clone https://github.com/KwaiVGI/LivePortrait.git /root/LivePortrait",
+        "cd /root/LivePortrait && git lfs pull",
+        "pip install -r /root/LivePortrait/requirements.txt || true"
     )
     .run_function(download_liveportrait_weights)
 )
@@ -82,13 +96,6 @@ class DanceRequest(BaseModel):
     height: int = 768
     width: int = 512
 
-class DanceResponse(BaseModel):
-    status: str
-    message: Optional[str] = None
-    result_video_base64: Optional[str] = None
-    duration_seconds: Optional[float] = None
-    fps: Optional[int] = 24
-
 @app.cls(
     image=video_image,
     gpu="A10G",
@@ -99,38 +106,13 @@ class VideoDanceEngine:
     @modal.enter()
     def setup(self):
         import torch
-        print(f"[VideoDanceEngine] Initializing LivePortrait Neural Engine on GPU: {torch.cuda.get_device_name(0)}")
-        
-        # Add LivePortrait repo to Python path
-        sys.path.insert(0, "/root/LivePortrait")
-        os.chdir("/root/LivePortrait")
-
-        try:
-            from src.config.inference_config import InferenceConfig
-            from src.config.crop_config import CropConfig
-            from src.live_portrait_pipeline import LivePortraitPipeline
-
-            self.inference_cfg = InferenceConfig()
-            self.inference_cfg.flag_use_half_precision = True
-            self.inference_cfg.flag_crop_driving_video = True
-            self.inference_cfg.flag_pasteback = True
-            self.inference_cfg.flag_do_crop = True
-            self.inference_cfg.flag_stitching = True
-
-            self.crop_cfg = CropConfig()
-
-            print("[VideoDanceEngine] Loading LivePortrait pipeline models...")
-            self.pipeline = LivePortraitPipeline(
-                inference_cfg=self.inference_cfg,
-                crop_cfg=self.crop_cfg
-            )
-            print("[VideoDanceEngine] LivePortrait Pipeline ready for neural retargeting!")
-        except Exception as e:
-            print(f"[VideoDanceEngine] Warning during LivePortrait initialization: {e}")
-            self.pipeline = None
+        print(f"[VideoDanceEngine] Initializing LivePortrait on GPU: {torch.cuda.get_device_name(0)}")
+        # Pre-warm and verify environment
+        subprocess.run(["ffmpeg", "-version"], check=True, stdout=subprocess.PIPE)
+        print("[VideoDanceEngine] LivePortrait environment ready!")
 
     @modal.fastapi_endpoint(method="POST")
-    def api_dance(self, req: DanceRequest) -> DanceResponse:
+    def api_dance(self, req: DanceRequest):
         t0 = time.time()
         work_dir = tempfile.mkdtemp(prefix="dance_task_")
         try:
@@ -144,80 +126,86 @@ class VideoDanceEngine:
                 f.write(raw_img_bytes)
 
             # 2. Resolve Driving Donor Video
-            # Map template IDs to built-in donor dance/motion choreographies
-            template_donor_map = {
-                "viral_house_shuffle": "/root/LivePortrait/assets/examples/driving/d0.mp4",
-                "kpop_hiphop_groove": "/root/LivePortrait/assets/examples/driving/d13.mp4",
-                "electro_rave_shuffle": "/root/LivePortrait/assets/examples/driving/d6.mp4",
-                "latina_salsa_groove": "/root/LivePortrait/assets/examples/driving/d2.mp4"
-            }
-
             driving_path = None
             if req.video_base64:
-                # Custom donor video supplied by user
                 donor_bytes = base64.b64decode(req.video_base64.split(",")[-1])
                 custom_driving_path = os.path.join(work_dir, "custom_donor.mp4")
                 with open(custom_driving_path, "wb") as f:
                     f.write(donor_bytes)
                 driving_path = custom_driving_path
             else:
+                template_donor_map = {
+                    "viral_house_shuffle": "/root/LivePortrait/assets/examples/driving/d0.mp4",
+                    "kpop_hiphop_groove": "/root/LivePortrait/assets/examples/driving/d13.mp4",
+                    "electro_rave_shuffle": "/root/LivePortrait/assets/examples/driving/d6.mp4",
+                    "latina_salsa_groove": "/root/LivePortrait/assets/examples/driving/d2.mp4"
+                }
                 driving_path = template_donor_map.get(req.dance_template_id, "/root/LivePortrait/assets/examples/driving/d0.mp4")
+                
+                # Check if file exists or find any available driving video / pkl
                 if not os.path.exists(driving_path):
-                    # Check for alternate existing driving video
                     example_dir = "/root/LivePortrait/assets/examples/driving"
                     if os.path.exists(example_dir):
-                        mp4_files = [os.path.join(example_dir, f) for f in os.listdir(example_dir) if f.endswith(".mp4")]
-                        if mp4_files:
-                            driving_path = mp4_files[0]
+                        valid_files = [
+                            os.path.join(example_dir, f)
+                            for f in os.listdir(example_dir)
+                            if f.endswith(".mp4") or f.endswith(".pkl")
+                        ]
+                        if valid_files:
+                            driving_path = valid_files[0]
 
-            out_video_path = os.path.join(work_dir, "rendered_dance.mp4")
+            if not driving_path or not os.path.exists(driving_path):
+                raise RuntimeError(f"Driving donor video not found in container (path: {driving_path})")
 
-            # 3. Neural Motion Retargeting with LivePortrait Pipeline
-            if self.pipeline is not None and driving_path and os.path.exists(driving_path):
-                sys.path.insert(0, "/root/LivePortrait")
-                os.chdir("/root/LivePortrait")
-                
-                # Execute neural motion transfer
-                self.pipeline.execute(
-                    source_image_path=src_img_path,
-                    driving_info_path=driving_path,
-                    output_dir=work_dir,
-                    flag_crop_driving_video=True,
-                    flag_pasteback=True,
-                    flag_do_crop=True
-                )
+            # 3. Neural Retargeting with LivePortrait Inference CLI
+            print(f"[VideoDanceEngine] Executing LivePortrait with donor video: {driving_path}")
+            cmd = [
+                "python", "/root/LivePortrait/inference.py",
+                "-s", src_img_path,
+                "-d", driving_path,
+                "-o", work_dir,
+                "--flag_crop_driving_video",
+                "--flag_pasteback",
+                "--flag_do_crop"
+            ]
+            
+            res = subprocess.run(cmd, cwd="/root/LivePortrait", capture_output=True, text=True)
+            if res.returncode != 0:
+                print(f"[VideoDanceEngine] LivePortrait execution stdout: {res.stdout}")
+                print(f"[VideoDanceEngine] LivePortrait execution stderr: {res.stderr}")
+                raise RuntimeError(f"LivePortrait failed: {res.stderr[:500]}")
 
-                # Locate generated output video
-                generated_files = [os.path.join(work_dir, f) for f in os.listdir(work_dir) if f.endswith(".mp4") and f != "custom_donor.mp4"]
-                if generated_files:
-                    out_video_path = generated_files[0]
-            else:
-                # Fallback to high-quality optical flow retargeting if pipeline failed to load
-                raise RuntimeError("LivePortrait pipeline is not loaded or driving donor video not found.")
+            # Locate generated output video in work_dir or subdirectories
+            mp4_candidates = glob.glob(os.path.join(work_dir, "**", "*.mp4"), recursive=True)
+            out_candidates = [f for f in mp4_candidates if os.path.basename(f) != "custom_donor.mp4" and "concat" not in f]
+            if not out_candidates:
+                out_candidates = [f for f in mp4_candidates if os.path.basename(f) != "custom_donor.mp4"]
+            
+            if not out_candidates:
+                raise RuntimeError("No output video was generated by LivePortrait pipeline.")
 
-            # 4. Read final H.264 MP4 and encode to Base64
+            out_video_path = out_candidates[0]
+            print(f"[VideoDanceEngine] Generated video located: {out_video_path}")
+
             with open(out_video_path, "rb") as f:
                 b64_video = base64.b64encode(f.read()).decode("utf-8")
 
-            data_uri = f"data:video/mp4;base64,{b64_video}"
             dur = round(time.time() - t0, 2)
-
-            return DanceResponse(
-                status="success",
-                result_video_base64=data_uri,
-                duration_seconds=dur,
-                fps=req.fps
-            )
+            return {
+                "status": "success",
+                "result_video_base64": f"data:video/mp4;base64,{b64_video}",
+                "duration_seconds": dur,
+                "fps": req.fps
+            }
 
         except Exception as e:
             print(f"[VideoDanceEngine] Retargeting error: {e}")
-            import traceback
             traceback.print_exc()
-            return DanceResponse(
-                status="error",
-                message=str(e),
-                duration_seconds=round(time.time() - t0, 2)
-            )
+            return {
+                "status": "error",
+                "message": str(e),
+                "duration_seconds": round(time.time() - t0, 2)
+            }
         finally:
             import shutil
             import torch
@@ -227,7 +215,3 @@ class VideoDanceEngine:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             gc.collect()
-
-@app.local_entrypoint()
-def main():
-    print("VideoDanceEngine local test entrypoint.")
