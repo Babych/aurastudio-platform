@@ -1387,6 +1387,29 @@ export default {
     // =========================================================================
     if (url.pathname === "/api/smoke-test" || url.pathname === "/functions/api/smoke-test") {
       try {
+        const taskIdParam = url.searchParams.get("task_id");
+        if (taskIdParam && env && env.DB) {
+          const row = await env.DB.prepare(`
+            SELECT id, user_id, type, preset_id, status, duration, error_message, created_at, 
+                   LENGTH(input_image_url) as input_len, LENGTH(output_image_url) as output_len
+            FROM generations WHERE id = ?
+          `).bind(taskIdParam).first();
+
+          if (row) {
+            return jsonResponse({
+              status: row.status,
+              task_id: row.id,
+              preset: row.preset_id,
+              duration: row.duration ? `${row.duration}s` : null,
+              error: row.error_message,
+              created_at: row.created_at,
+              has_output: (row.output_len && row.output_len > 50) ? true : false
+            });
+          } else {
+            return jsonResponse({ status: "not_found", message: "Task ID not found in database" }, 404);
+          }
+        }
+
         const adminKey = url.searchParams.get("admin_key") || request.headers.get("x-admin-key");
         if (adminKey !== "aurastudio-admin-2026" && adminKey !== "smoke_test_run") {
           return jsonResponse({ status: "unauthorized", message: "Invalid admin key" }, 401);
@@ -1400,44 +1423,70 @@ export default {
         // 64x64 PNG Base64 test canvas
         const sampleBase64 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAMElEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4MWhgAAGt16kAAAAAAElFTkSuQmCC";
 
-        const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
-          image_base64: sampleBase64,
-          prompt: prompt,
-          negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-          steps: 20,
-          cfg: 1.95,
-          seed: 888424
-        });
-
-        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-        if (mData.status === "success" && mData.result_base64) {
-          await recordGenerationInD1(env, {
-            id: taskId,
-            userId: "smoke_tester_999",
-            source: "smoke_test",
-            presetId: presetKey,
-            prompt,
-            inputBase64: sampleBase64,
-            outputBase64: mData.result_base64,
-            duration,
-            status: "SUCCESS"
-          });
-
-          return jsonResponse({
-            status: "success",
-            task_id: taskId,
-            preset: presetKey,
-            duration: `${duration}s`,
-            gpu_engine: "Qwen 2.5 DiT (Modal A10G)",
-            message: "Smoke test generation completed and recorded in D1 successfully",
-            output_preview_size: mData.result_base64.length
-          });
-        } else {
-          throw new Error(mData.message || "Model failed to return output");
+        // Initial PENDING state in D1
+        if (env && env.DB) {
+          await env.DB.prepare(`
+            INSERT INTO generations (id, user_id, type, preset_id, prompt, input_image_url, status, created_at)
+            VALUES (?, ?, 'photo', ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+          `).bind(taskId, "smoke_tester_999", presetKey, prompt, `data:image/png;base64,${sampleBase64}`).run();
         }
+
+        ctx.waitUntil((async () => {
+          try {
+            const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+              image_base64: sampleBase64,
+              prompt: prompt,
+              negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+              steps: 20,
+              cfg: 1.95,
+              seed: 888424
+            });
+
+            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            if (mData.status === "success" && mData.result_base64) {
+              await recordGenerationInD1(env, {
+                id: taskId,
+                userId: "smoke_tester_999",
+                source: "smoke_test",
+                presetId: presetKey,
+                prompt,
+                inputBase64: sampleBase64,
+                outputBase64: mData.result_base64,
+                duration,
+                status: "SUCCESS"
+              });
+              console.log(`[SmokeTest] Task ${taskId} finished successfully in ${duration}s!`);
+            } else {
+              throw new Error(mData.message || "Model failed to return output");
+            }
+          } catch (err) {
+            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+            console.error(`[SmokeTest] Task ${taskId} failed:`, err);
+            await recordGenerationInD1(env, {
+              id: taskId,
+              userId: "smoke_tester_999",
+              source: "smoke_test",
+              presetId: presetKey,
+              prompt,
+              inputBase64: sampleBase64,
+              outputBase64: null,
+              duration,
+              status: "FAILED",
+              errorMessage: err.message
+            });
+          }
+        })());
+
+        return jsonResponse({
+          status: "queued",
+          task_id: taskId,
+          preset: presetKey,
+          message: "Smoke test dispatched to GPU. Poll /api/smoke-test?task_id=" + taskId,
+          check_url: `/api/smoke-test?task_id=${taskId}`
+        });
       } catch (err) {
-        console.error("Smoke test failed:", err);
+        console.error("Smoke test trigger failed:", err);
         return jsonResponse({
           status: "failed",
           error: err.message
