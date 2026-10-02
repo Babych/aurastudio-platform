@@ -37,6 +37,7 @@ jobs:
           npx wrangler deploy
 
       - name: "Deploy to Modal Cloud GPU Primary"
+        continue-on-error: true
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}

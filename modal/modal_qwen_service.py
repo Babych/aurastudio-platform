@@ -34,8 +34,7 @@ image = (
         "einops",
         "scipy",
         "numpy",
-        "gguf>=0.10.0",
-        "sageattention"
+        "gguf>=0.10.0"
     )
     .run_commands(
         # Clone ComfyUI + ComfyUI-GGUF inside the image
