@@ -78,3 +78,14 @@ CREATE TABLE IF NOT EXISTS error_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_errors_created ON error_logs(created_at);
+
+-- 6. Telegram Sessions for Serverless State Persistence
+CREATE TABLE IF NOT EXISTS telegram_sessions (
+    user_id TEXT PRIMARY KEY,
+    last_photo_file_id TEXT,
+    pending_action TEXT,
+    pending_style TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_tg_sessions_user ON telegram_sessions(user_id);
+

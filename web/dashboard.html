@@ -217,13 +217,14 @@
         </div>
     </div>
 
-    <!-- Image Preview Modal -->
+    <!-- Image / Video Preview Modal -->
     <div id="imageModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4" onclick="closeImageModal()">
         <div class="max-w-3xl w-full text-center space-y-3 relative" onclick="event.stopPropagation()">
             <button onclick="closeImageModal()" class="absolute -top-10 right-0 text-gray-400 hover:text-white text-sm flex items-center gap-1">
                 <i data-lucide="x" class="w-5 h-5"></i> Закрити
             </button>
-            <img id="modalImg" src="" class="max-h-[80vh] mx-auto rounded-2xl shadow-2xl border border-gray-800">
+            <img id="modalImg" src="" class="max-h-[80vh] mx-auto rounded-2xl shadow-2xl border border-gray-800 hidden">
+            <video id="modalVideo" src="" controls autoplay loop class="max-h-[80vh] mx-auto rounded-2xl shadow-2xl border border-gray-800 hidden"></video>
             <p id="modalCaption" class="text-xs text-gray-400"></p>
         </div>
     </div>
@@ -362,13 +363,29 @@
 
         function openImageModal(src, caption) {
             if (!src || src === 'uploaded_image' || src === 'generated_image') return;
-            document.getElementById('modalImg').src = src;
+            const isVid = src.includes('.mp4') || src.startsWith('data:video');
+            const imgEl = document.getElementById('modalImg');
+            const vidEl = document.getElementById('modalVideo');
+            if (isVid) {
+                imgEl.classList.add('hidden');
+                vidEl.src = src;
+                vidEl.classList.remove('hidden');
+            } else {
+                if (vidEl) {
+                    vidEl.pause();
+                    vidEl.classList.add('hidden');
+                }
+                imgEl.src = src;
+                imgEl.classList.remove('hidden');
+            }
             document.getElementById('modalCaption').innerText = caption || '';
             document.getElementById('imageModal').classList.remove('hidden');
             document.getElementById('imageModal').classList.add('flex');
         }
 
         function closeImageModal() {
+            const vidEl = document.getElementById('modalVideo');
+            if (vidEl) vidEl.pause();
             document.getElementById('imageModal').classList.add('hidden');
             document.getElementById('imageModal').classList.remove('flex');
         }

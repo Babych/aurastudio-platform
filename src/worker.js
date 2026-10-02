@@ -125,10 +125,30 @@ function isUserAdmin(userId, username, email, env) {
   return false;
 }
 
+let isTgSessionTableReady = false;
+async function ensureTgSessionTable(env) {
+  if (!env || !env.DB || isTgSessionTableReady) return;
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS telegram_sessions (
+        user_id TEXT PRIMARY KEY,
+        last_photo_file_id TEXT,
+        pending_action TEXT,
+        pending_style TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+    isTgSessionTableReady = true;
+  } catch (e) {
+    console.error("ensureTgSessionTable error:", e);
+  }
+}
+
 // Helper: Get persistent Telegram user session from D1
 async function getTgSession(env, userId) {
   if (env && env.DB) {
     try {
+      await ensureTgSessionTable(env);
       const row = await env.DB.prepare("SELECT * FROM telegram_sessions WHERE user_id = ?").bind(userId).first();
       if (row) {
         return {
@@ -153,6 +173,7 @@ async function setTgSession(env, userId, data) {
   tgUserSessions.set(userId, updated);
   if (env && env.DB) {
     try {
+      await ensureTgSessionTable(env);
       await env.DB.prepare(`
         INSERT OR REPLACE INTO telegram_sessions (user_id, last_photo_file_id, pending_action, pending_style, updated_at)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -165,6 +186,72 @@ async function setTgSession(env, userId, data) {
     } catch(e) {
       console.error("D1 setTgSession error:", e);
     }
+  }
+}
+
+// Helper: Record completed or failed generation in D1 with visual previews for Dashboard
+async function recordGenerationInD1(env, { id, userId, source = 'telegram_bot', presetId, prompt, inputBase64, outputBase64, duration, status = 'SUCCESS', errorMessage = null }) {
+  if (!env || !env.DB) return;
+  try {
+    const taskId = id || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    let inThumb = inputBase64 ? (inputBase64.startsWith("data:") ? inputBase64 : `data:image/jpeg;base64,${inputBase64}`) : null;
+    let outThumb = outputBase64 ? (outputBase64.startsWith("data:") ? outputBase64 : `data:image/png;base64,${outputBase64}`) : null;
+
+    if (env.STORAGE) {
+      try {
+        if (inThumb && inThumb.startsWith("data:")) {
+          const r2In = await uploadToR2(env.STORAGE, `in_${taskId}.jpg`, inThumb);
+          if (r2In) inThumb = r2In;
+        }
+        if (outThumb && outThumb.startsWith("data:")) {
+          const isVideo = outThumb.includes("video") || (presetId && presetId.includes("dance"));
+          const ext = isVideo ? ".mp4" : ".png";
+          const r2Out = await uploadToR2(env.STORAGE, `out_${taskId}${ext}`, outThumb);
+          if (r2Out) outThumb = r2Out;
+        }
+      } catch (r2Err) {
+        console.error("R2 storage error in recordGenerationInD1:", r2Err);
+      }
+    }
+
+    const shareToken = Math.random().toString(36).substring(2, 10);
+    const durSec = parseFloat(duration) || 28.0;
+
+    await env.DB.prepare(`
+      INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, output_image_url, status, duration_seconds, is_shared, share_token, error_message)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `).bind(
+      taskId,
+      userId || "anonymous",
+      source,
+      presetId || "custom",
+      (prompt || "").slice(0, 500),
+      inThumb || "uploaded_image",
+      outThumb || (status === 'SUCCESS' ? "generated_image" : null),
+      status,
+      durSec,
+      shareToken,
+      errorMessage || null
+    ).run();
+
+    await env.DB.prepare(`
+      INSERT INTO telemetry_events (event_type, source, user_id, duration_seconds, usd_amount, details)
+      VALUES (?, ?, ?, ?, 0.0, ?)
+    `).bind(
+      status === 'SUCCESS' ? 'GENERATION_SUCCESS' : 'GENERATION_FAILURE',
+      source,
+      userId || "anonymous",
+      durSec,
+      JSON.stringify({ preset: presetId, prompt: (prompt || "").slice(0, 100), task_id: taskId, error: errorMessage })
+    ).run();
+
+    if (userId) {
+      await env.DB.prepare(`
+        UPDATE users SET total_generations = COALESCE(total_generations, 0) + 1 WHERE id = ?
+      `).bind(userId).run();
+    }
+  } catch (err) {
+    console.error("recordGenerationInD1 error:", err);
   }
 }
 
@@ -1204,6 +1291,7 @@ export default {
 
         const sendTgPhoto = async (chatId, photoUrlOrBase64, caption, extra = {}) => {
           try {
+            let res, data;
             if (photoUrlOrBase64.startsWith("data:") || !photoUrlOrBase64.startsWith("http")) {
               const base64Data = photoUrlOrBase64.replace(/^data:image\/\w+;base64,/, "");
               const binaryStr = atob(base64Data);
@@ -1217,46 +1305,52 @@ export default {
               formData.append("photo", new Blob([bytes], { type: "image/png" }), "result.png");
               if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
 
-              const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+              res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
                 method: "POST",
                 body: formData
               });
-              const data = await res.json();
-              if (!data.ok && data.description && data.description.includes("can't parse entities")) {
+              data = await res.json();
+              if (!data.ok) {
                 const fd2 = new FormData();
                 fd2.append("chat_id", chatId.toString());
                 fd2.append("caption", caption.replace(/[*_`\[\]]/g, ""));
                 fd2.append("photo", new Blob([bytes], { type: "image/png" }), "result.png");
                 if (extra.reply_markup) fd2.append("reply_markup", JSON.stringify(extra.reply_markup));
-                return await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
                   method: "POST",
                   body: fd2
                 });
+                data = await res.json();
               }
-              return res;
-            }
-
-            const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chat_id: chatId, photo: photoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
-            });
-            const data = await res.json();
-            if (!data.ok && data.description && data.description.includes("can't parse entities")) {
-              return await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+            } else {
+              res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chat_id: chatId, photo: photoUrlOrBase64, caption: caption.replace(/[*_`\[\]]/g, ""), ...extra })
+                body: JSON.stringify({ chat_id: chatId, photo: photoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
               });
+              data = await res.json();
+              if (!data.ok) {
+                res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ chat_id: chatId, photo: photoUrlOrBase64, caption: caption.replace(/[*_`\[\]]/g, ""), ...extra })
+                });
+                data = await res.json();
+              }
             }
-            return res;
+            if (!data.ok) {
+              throw new Error(`Telegram sendPhoto failed: ${data.description || "Unknown error"}`);
+            }
+            return data;
           } catch (e) {
             console.error("sendTgPhoto error:", e);
+            throw e;
           }
         };
 
         const sendTgVideo = async (chatId, videoUrlOrBase64, caption, extra = {}) => {
           try {
+            let res, data;
             if (videoUrlOrBase64.startsWith("data:") || !videoUrlOrBase64.startsWith("http")) {
               const base64Data = videoUrlOrBase64.replace(/^data:video\/\w+;base64,/, "");
               const binaryStr = atob(base64Data);
@@ -1270,41 +1364,46 @@ export default {
               formData.append("video", new Blob([bytes], { type: "video/mp4" }), "dance.mp4");
               if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
 
-              const res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+              res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
                 method: "POST",
                 body: formData
               });
-              const data = await res.json();
-              if (!data.ok && data.description && data.description.includes("can't parse entities")) {
+              data = await res.json();
+              if (!data.ok) {
                 const fd2 = new FormData();
                 fd2.append("chat_id", chatId.toString());
                 fd2.append("caption", caption.replace(/[*_`\[\]]/g, ""));
                 fd2.append("video", new Blob([bytes], { type: "video/mp4" }), "dance.mp4");
                 if (extra.reply_markup) fd2.append("reply_markup", JSON.stringify(extra.reply_markup));
-                return await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+                res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
                   method: "POST",
                   body: fd2
                 });
+                data = await res.json();
               }
-              return res;
-            }
-
-            const res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chat_id: chatId, video: videoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
-            });
-            const data = await res.json();
-            if (!data.ok && data.description && data.description.includes("can't parse entities")) {
-              return await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+            } else {
+              res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chat_id: chatId, video: videoUrlOrBase64, caption: caption.replace(/[*_`\[\]]/g, ""), ...extra })
+                body: JSON.stringify({ chat_id: chatId, video: videoUrlOrBase64, caption, parse_mode: "Markdown", ...extra })
               });
+              data = await res.json();
+              if (!data.ok) {
+                res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ chat_id: chatId, video: videoUrlOrBase64, caption: caption.replace(/[*_`\[\]]/g, ""), ...extra })
+                });
+                data = await res.json();
+              }
             }
-            return res;
+            if (!data.ok) {
+              throw new Error(`Telegram sendVideo failed: ${data.description || "Unknown error"}`);
+            }
+            return data;
           } catch (e) {
             console.error("sendTgVideo error:", e);
+            throw e;
           }
         };
 
@@ -1404,10 +1503,11 @@ export default {
               sendTgChatAction(chatId, "upload_photo");
 
               ctx.waitUntil((async () => {
+                const startTime = Date.now();
                 try {
                   const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
                   const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
@@ -1423,7 +1523,19 @@ export default {
                     seed: 888424
                   });
 
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
                   if (mData.status === "success" && mData.result_base64) {
+                    await recordGenerationInD1(env, {
+                      userId,
+                      source: "telegram_bot",
+                      presetId: presetKey,
+                      prompt,
+                      inputBase64: photoBase64,
+                      outputBase64: mData.result_base64,
+                      duration
+                    });
+
                     await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*\nДвигун: Qwen 2.5 DiT 20B`, {
                       reply_markup: {
                         inline_keyboard: [
@@ -1432,10 +1544,11 @@ export default {
                       }
                     });
                   } else {
-                    await sendTgMessage(chatId, "⚠️ Не вдалося згенерувати фото. Спробуйте інше фото або стиль.");
+                    throw new Error(mData.message || "Model failed to return image result");
                   }
                 } catch(err) {
                   console.error("TG generation error:", err);
+                  logCriticalError(env, ctx, "telegram_photo", err.message, userId);
                   await sendTgMessage(chatId, "⚠️ Помилка генерації: " + err.message);
                 }
               })());
@@ -1468,10 +1581,11 @@ export default {
               sendTgChatAction(chatId, "upload_video");
 
               ctx.waitUntil((async () => {
+                const startTime = Date.now();
                 try {
                   const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photoFileId}`);
                   const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
@@ -1487,7 +1601,19 @@ export default {
                     width: 512
                   });
 
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
                   if (mData.status === "success" && mData.result_video_base64) {
+                    await recordGenerationInD1(env, {
+                      userId,
+                      source: "telegram_bot",
+                      presetId: `dance_${templateId}`,
+                      prompt: `TikTok Dance: ${danceName}`,
+                      inputBase64: photoBase64,
+                      outputBase64: mData.result_video_base64,
+                      duration
+                    });
+
                     await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *${danceName}*\nДвигун: AuraDance 2.5 DiT`, {
                       reply_markup: {
                         inline_keyboard: [
@@ -1496,7 +1622,7 @@ export default {
                       }
                     });
                   } else {
-                    await sendTgMessage(chatId, "⚠️ Не вдалося створити відео. Спробуйте інше фото (бажано в повний зріст або по пояс).");
+                    throw new Error(mData.message || "Dance engine failed to return video result");
                   }
                 } catch (err) {
                   logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
@@ -1675,10 +1801,11 @@ export default {
               sendTgChatAction(chatId, "upload_video");
 
               ctx.waitUntil((async () => {
+                const startTime = Date.now();
                 try {
                   const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
                   const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
@@ -1693,7 +1820,19 @@ export default {
                     width: 512
                   });
 
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
                   if (mData.status === "success" && mData.result_video_base64) {
+                    await recordGenerationInD1(env, {
+                      userId,
+                      source: "telegram_bot",
+                      presetId: `dance_${templateId}`,
+                      prompt: `TikTok Dance: ${danceName}`,
+                      inputBase64: photoBase64,
+                      outputBase64: mData.result_video_base64,
+                      duration
+                    });
+
                     await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *${danceName}*\nДвигун: AuraDance 2.5 DiT`, {
                       reply_markup: {
                         inline_keyboard: [
@@ -1702,7 +1841,7 @@ export default {
                       }
                     });
                   } else {
-                    await sendTgMessage(chatId, "⚠️ Не вдалося створити відео. Спробуйте інше фото (бажано в повний зріст або по пояс).");
+                    throw new Error(mData.message || "Dance engine failed to return video result");
                   }
                 } catch (err) {
                   logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
@@ -1729,10 +1868,11 @@ export default {
               sendTgChatAction(chatId, "upload_photo");
 
               ctx.waitUntil((async () => {
+                const startTime = Date.now();
                 try {
                   const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
                   const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
@@ -1747,7 +1887,19 @@ export default {
                     seed: 888424
                   });
 
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
                   if (mData.status === "success" && mData.result_base64) {
+                    await recordGenerationInD1(env, {
+                      userId,
+                      source: "telegram_bot",
+                      presetId: presetKey,
+                      prompt,
+                      inputBase64: photoBase64,
+                      outputBase64: mData.result_base64,
+                      duration
+                    });
+
                     await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*\nДвигун: Qwen 2.5 DiT 20B`, {
                       reply_markup: {
                         inline_keyboard: [
@@ -1756,7 +1908,7 @@ export default {
                       }
                     });
                   } else {
-                    await sendTgMessage(chatId, "⚠️ Не вдалося створити фото. Спробуйте інший промпт.");
+                    throw new Error(mData.message || "Model failed to return image result");
                   }
                 } catch (err) {
                   logCriticalError(env, ctx, "telegram_photo", err.message, userId);
@@ -1769,11 +1921,12 @@ export default {
             if (isDanceCaption) {
               await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець за вашим запитом...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
               ctx.waitUntil((async () => {
+                const startTime = Date.now();
                 try {
                   const bestPhoto = photos[photos.length - 1];
                   const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
                   const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram");
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
 
                   const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
                   const photoBuffer = await photoBlobRes.arrayBuffer();
@@ -1788,7 +1941,19 @@ export default {
                     width: 512
                   });
 
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
                   if (mData.status === "success" && mData.result_video_base64) {
+                    await recordGenerationInD1(env, {
+                      userId,
+                      source: "telegram_bot",
+                      presetId: "dance_viral_house_shuffle",
+                      prompt: "TikTok Dance: Viral House Shuffle",
+                      inputBase64: photoBase64,
+                      outputBase64: mData.result_video_base64,
+                      duration
+                    });
+
                     await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *Viral House Shuffle*\nДвигун: AuraDance 2.5 DiT`, {
                       reply_markup: {
                         inline_keyboard: [
@@ -1797,7 +1962,7 @@ export default {
                       }
                     });
                   } else {
-                    await sendTgMessage(chatId, "⚠️ Не вдалося створити відео. Спробуйте інше фото.");
+                    throw new Error(mData.message || "Dance engine failed to return video result");
                   }
                 } catch (err) {
                   logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
@@ -1812,27 +1977,47 @@ export default {
               await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${caption}"_...`);
               // Async execution
               ctx.waitUntil((async () => {
-                const bestPhoto = photos[photos.length - 1];
-                const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
-                const fileData = await fileRes.json();
-                const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
-                const photoBuffer = await photoBlobRes.arrayBuffer();
-                const photoBase64 = arrayBufferToBase64(photoBuffer);
+                const startTime = Date.now();
+                try {
+                  const bestPhoto = photos[photos.length - 1];
+                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
+                  const fileData = await fileRes.json();
+                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
 
-                // Call Modal GPU with multi-account failover
-                const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
-                  image_base64: photoBase64,
-                  prompt: caption,
-                  negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-                  steps: 22,
-                  cfg: 1.95,
-                  seed: 888424
-                });
+                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
+                  const photoBuffer = await photoBlobRes.arrayBuffer();
+                  const photoBase64 = arrayBufferToBase64(photoBuffer);
 
-                if (mData.status === "success" && mData.result_base64) {
-                  await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nОпис: _"${caption}"_`);
-                } else {
-                  await sendTgMessage(chatId, "⚠️ Не вдалося створити фото. Спробуйте інший промпт.");
+                  // Call Modal GPU with multi-account failover
+                  const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+                    image_base64: photoBase64,
+                    prompt: caption,
+                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+                    steps: 22,
+                    cfg: 1.95,
+                    seed: 888424
+                  });
+
+                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                  if (mData.status === "success" && mData.result_base64) {
+                    await recordGenerationInD1(env, {
+                      userId,
+                      source: "telegram_bot",
+                      presetId: "custom",
+                      prompt: caption,
+                      inputBase64: photoBase64,
+                      outputBase64: mData.result_base64,
+                      duration
+                    });
+
+                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nОпис: _"${caption}"_`);
+                  } else {
+                    throw new Error(mData.message || "Model failed to return image result");
+                  }
+                } catch (err) {
+                  logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                  await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
                 }
               })());
             } else {
