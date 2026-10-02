@@ -1390,7 +1390,7 @@ export default {
         const taskIdParam = url.searchParams.get("task_id");
         if (taskIdParam && env && env.DB) {
           const row = await env.DB.prepare(`
-            SELECT id, user_id, type, preset_id, status, duration, error_message, created_at, 
+            SELECT id, user_id, source, preset_id, status, duration_seconds as duration, error_message, created_at, 
                    LENGTH(input_image_url) as input_len, LENGTH(output_image_url) as output_len
             FROM generations WHERE id = ?
           `).bind(taskIdParam).first();
@@ -1425,10 +1425,18 @@ export default {
 
         // Initial PENDING state in D1
         if (env && env.DB) {
-          await env.DB.prepare(`
-            INSERT INTO generations (id, user_id, type, preset_id, prompt, input_image_url, status, created_at)
-            VALUES (?, ?, 'photo', ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-          `).bind(taskId, "smoke_tester_999", presetKey, prompt, `data:image/png;base64,${sampleBase64}`).run();
+          try {
+            await env.DB.prepare(`
+              INSERT OR IGNORE INTO users (id, name, auth_provider)
+              VALUES ('smoke_tester_999', 'Smoke Tester', 'test')
+            `).run();
+            await env.DB.prepare(`
+              INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, status, created_at)
+              VALUES (?, ?, 'smoke_test', ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+            `).bind(taskId, "smoke_tester_999", presetKey, prompt, `data:image/png;base64,${sampleBase64}`).run();
+          } catch(e) {
+            console.error("Error creating smoke test pending record:", e);
+          }
         }
 
         ctx.waitUntil((async () => {
