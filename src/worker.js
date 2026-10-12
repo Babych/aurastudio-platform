@@ -2087,11 +2087,13 @@ export default {
                       { text: "💎 Ultra-HD Macro Skin (4K)", callback_data: "preset_ultrahd_skin" },
                       { text: "💼 LinkedIn Pro", callback_data: "preset_linkedin" }
                     ],
-                      { text: "🍸 Old Money", callback_data: "preset_old_money" }
+                    [
+                      { text: "🍸 Old Money", callback_data: "preset_old_money" },
+                      { text: "👱‍♀️ Blonde Restyle", callback_data: "preset_blonde" }
                     ],
                     [
-                      { text: "👱‍♀️ Blonde Restyle", callback_data: "preset_blonde" },
-                      { text: "🌴 Bali Sunset", callback_data: "preset_bali" }
+                      { text: "🌴 Bali Sunset", callback_data: "preset_bali" },
+                      { text: "⚡ Cyberpunk", callback_data: "preset_cyberpunk" }
                     ],
                     [
                       { text: "🎭 Muppet Meme", callback_data: "preset_muppet" },
