@@ -20,6 +20,12 @@
   //     "bucket_name": "aurastudio-media"
   //   }
   // ],
+  "observability": {
+    "logs": {
+      "enabled": false,
+      "invocation_logs": true
+    }
+  },
   "vars": {
     "TELEGRAM_ONLY_PAYMENTS": "true",
     "MODAL_ENDPOINT_URL": "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
