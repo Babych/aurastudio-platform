@@ -50,10 +50,6 @@ const MODAL_PHOTO_ENDPOINTS = [
   "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run"
 ];
 
-const MODAL_VIDEO_ENDPOINTS = [
-  "https://dmytrobbch--aurastudio-video-dance-service-videodanceeng-753eb3.modal.run",
-  "https://memory1024--aurastudio-video-dance-service-videodanceeng-753eb3.modal.run"
-];
 
 const GLOBAL_PRESETS = {
   ultrahd_skin: "extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft studio lighting, 85mm f/1.4 lens, razor-sharp focus",
@@ -190,7 +186,7 @@ async function sendTgVideoHelper(botToken, chatId, videoUrlOrBase64, caption, ex
       formData.append("chat_id", chatId.toString());
       formData.append("caption", caption);
       formData.append("parse_mode", "Markdown");
-      formData.append("video", new Blob([bytes], { type: "video/mp4" }), "dance.mp4");
+      formData.append("video", new Blob([bytes], { type: "video/mp4" }), "output.mp4");
       if (extra.reply_markup) formData.append("reply_markup", JSON.stringify(extra.reply_markup));
 
       res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
@@ -202,7 +198,7 @@ async function sendTgVideoHelper(botToken, chatId, videoUrlOrBase64, caption, ex
         const fd2 = new FormData();
         fd2.append("chat_id", chatId.toString());
         fd2.append("caption", caption.replace(/[*_`\[\]]/g, ""));
-        fd2.append("video", new Blob([bytes], { type: "video/mp4" }), "dance.mp4");
+        fd2.append("video", new Blob([bytes], { type: "video/mp4" }), "output.mp4");
         if (extra.reply_markup) fd2.append("reply_markup", JSON.stringify(extra.reply_markup));
         res = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
           method: "POST",
@@ -266,7 +262,7 @@ async function uploadToR2(bucket, key, base64Data) {
 
 // In-memory / D1 auth session store for Telegram deep link login
 const authSessions = new Map();
-// In-memory user state store for Telegram interactive flows (Dance & Presets)
+// In-memory user state store for Telegram interactive flows (Presets & Custom Prompts)
 const tgUserSessions = new Map();
 
 // Helper: Check if user has administrative privileges
@@ -548,7 +544,6 @@ export default {
         google_client_id: env.GOOGLE_CLIENT_ID || "",
         telegram_bot_username: env.TELEGRAM_BOT_USERNAME || "thing_intellect_bot",
         telegram_only_payments: env.TELEGRAM_ONLY_PAYMENTS !== "false",
-        enable_dance_studio: env.ENABLE_DANCE_STUDIO || "admin_only",
         environment: env.ENVIRONMENT || "production"
       });
     }
@@ -1158,123 +1153,6 @@ export default {
       }
     }
 
-    // =========================================================================
-    // 8.1 GENERATE: TikTok Dance & Video Character Retargeting
-    // =========================================================================
-    if (url.pathname === "/api/generate-dance-video" || url.pathname === "/functions/api/generate-dance-video") {
-      if (request.method === "POST") {
-        try {
-          const body = await request.json();
-          const { image_base64, dance_template_id, video_base64, audio_sync, user_id } = body;
-
-          if (!user_id || user_id === "anonymous") {
-            return jsonResponse({
-              status: "auth_required",
-              message: "Please sign in to generate AI TikTok Dance Reels."
-            }, 401);
-          }
-
-          // Admin Feature Flag Gate: Only allow admins when ENABLE_DANCE_STUDIO is admin_only
-          const danceFlag = env.ENABLE_DANCE_STUDIO || "admin_only";
-          if (danceFlag === "admin_only" && !isUserAdmin(user_id, body.user_name, body.user_email, env)) {
-            return jsonResponse({
-              status: "locked",
-              message: "🔒 TikTok Dance Studio is currently in closed testing for administrators. It will be released for all users soon!"
-            }, 403);
-          }
-
-          // Check Subscription or Stars Balance in D1 (40 Stars per Dance Video)
-          if (env.DB) {
-            const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user_id).first();
-            const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user_id).first();
-
-            const lastVideo = await env.DB.prepare(`
-              SELECT CAST((strftime('%s', 'now') - strftime('%s', created_at)) AS INTEGER) as seconds_ago
-              FROM telemetry_events 
-              WHERE user_id = ? AND event_type = 'VIDEO_DANCE_GENERATION'
-              ORDER BY created_at DESC 
-              LIMIT 1
-            `).bind(user_id).first();
-
-            // First generation is free per 24 hours, subsequent require subscription or 40 Stars
-            if (lastVideo && lastVideo.seconds_ago !== null && lastVideo.seconds_ago < 86400) {
-              if (sub) {
-                // Subscription active
-              } else if (u && (u.stars_balance || 0) >= 40) {
-                // Deduct 40 Telegram Stars
-                await env.DB.prepare("UPDATE users SET stars_balance = stars_balance - 40 WHERE id = ?").bind(user_id).run();
-              } else {
-                return jsonResponse({
-                  status: "stars_required",
-                  stars_balance: (u && u.stars_balance) || 0,
-                  required_stars: 40,
-                  message: `Для додаткової генерації відео-танцю потрібно 40 Telegram Stars (⭐️) або активна підписка.`
-                }, 403);
-              }
-            }
-          }
-
-          const taskId = `dance_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
-          const shareToken = taskId.replace('dance_', 'v_');
-
-          const payload = {
-            image_base64: image_base64.replace(/^data:image\/\w+;base64,/, ""),
-            dance_template_id: dance_template_id || "viral_house_shuffle",
-            video_base64: video_base64 ? video_base64.replace(/^data:video\/\w+;base64,/, "") : null,
-            audio_sync: audio_sync !== false,
-            fps: 24,
-            height: 768,
-            width: 512
-          };
-
-          const t0 = Date.now();
-          const modalData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, payload);
-          let resultVideoUri = modalData.result_video_base64;
-          let dur = modalData.duration_seconds || ((Date.now() - t0) / 1000).toFixed(1);
-
-          if (!resultVideoUri) {
-            throw new Error("Video generation failed on remote GPU.");
-          }
-
-          // Upload generated video to R2 if available
-          if (env.STORAGE && resultVideoUri.length > 1000) {
-            const r2VideoUrl = await uploadToR2(env.STORAGE, `video_${taskId}.mp4`, resultVideoUri);
-            if (r2VideoUrl) {
-              resultVideoUri = url.origin + r2VideoUrl;
-            }
-          }
-
-          if (env.DB) {
-            ctx.waitUntil((async () => {
-              try {
-                await env.DB.prepare(`
-                  INSERT INTO telemetry_events (event_type, source, user_id, duration_seconds, usd_amount, details)
-                  VALUES ('VIDEO_DANCE_GENERATION', 'web', ?, ?, 0.05, ?)
-                `).bind(user_id, parseFloat(dur), JSON.stringify({ template: dance_template_id, task_id: taskId, video_url: resultVideoUri })).run();
-              } catch (e) {
-                console.error("Video telemetry error:", e);
-              }
-            })());
-          }
-
-          const origin = url.origin;
-          const shareUrl = `${origin}/s/${shareToken}`;
-
-          return jsonResponse({
-            status: "success",
-            task_id: taskId,
-            share_token: shareToken,
-            share_url: shareUrl,
-            duration_seconds: parseFloat(dur),
-            result_video_url: resultVideoUri,
-            dance_template: dance_template_id
-          });
-        } catch (err) {
-          logCriticalError(env, ctx, "modal_video_gpu", err.message, null);
-          return jsonResponse({ status: "error", message: err.message }, 500);
-        }
-      }
-    }
 
     // =========================================================================
     // 8B. SHARE: Generate or Retrieve Shareable Link with OpenGraph
@@ -1980,89 +1858,6 @@ export default {
             return jsonResponse({ ok: true });
           }
 
-          // Handle Dance Video Generation from message photo or session
-          if (data.startsWith("dance_")) {
-            const templateId = data.replace("dance_", "");
-            const danceNames = {
-              viral_house_shuffle: "Viral House Shuffle",
-              kpop_hiphop_groove: "K-Pop Hip-Hop Groove",
-              electro_rave_shuffle: "Electro Rave Shuffle",
-              latina_salsa_groove: "Latina Salsa Groove"
-            };
-            const danceName = danceNames[templateId] || "TikTok Dance";
-
-            const explicitFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
-                                   cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id;
-            
-            const photoData = await getTgUserPhotoBase64(env, botToken, userId, explicitFileId);
-
-            if (photoData && photoData.base64) {
-              const targetTaskId = photoData.taskId || `dance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-              await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
-              sendTgChatAction(chatId, "upload_video");
-
-              ctx.waitUntil((async () => {
-                const startTime = Date.now();
-                try {
-                  // Call Modal GPU Video Dance failover
-                  const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
-                    image_base64: photoData.base64,
-                    dance_template_id: templateId,
-                    audio_sync: true,
-                    fps: 24,
-                    height: 768,
-                    width: 512
-                  });
-
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-                  if (mData.status === "success" && mData.result_video_base64) {
-                    await recordGenerationInD1(env, {
-                      id: targetTaskId,
-                      userId,
-                      source: "telegram_bot",
-                      presetId: `dance_${templateId}`,
-                      prompt: `TikTok Dance: ${danceName}`,
-                      inputBase64: photoData.base64,
-                      outputBase64: mData.result_video_base64,
-                      duration,
-                      status: "SUCCESS"
-                    });
-
-                    await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *${danceName}*\nДвигун: AuraDance 2.5 DiT`, {
-                      reply_markup: {
-                        inline_keyboard: [
-                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
-                        ]
-                      }
-                    });
-                  } else {
-                    throw new Error(mData.message || "Dance engine failed to return video result");
-                  }
-                } catch (err) {
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-                  logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
-                  await recordGenerationInD1(env, {
-                    id: targetTaskId,
-                    userId,
-                    source: "telegram_bot",
-                    presetId: `dance_${templateId}`,
-                    prompt: `TikTok Dance: ${danceName}`,
-                    inputBase64: null,
-                    outputBase64: null,
-                    duration,
-                    status: "FAILED",
-                    errorMessage: err.message
-                  });
-                  await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
-                }
-              })());
-            } else {
-              await setTgSession(env, userId, { pendingAction: "dance", templateId, danceName });
-              await sendTgMessage(chatId, `✅ Обрано стиль *${danceName}*!\n\n📸 Тепер надішліть сюди фото людини (бажано по пояс або в повний зріст), щоб згенерувати танець.`);
-            }
-            return jsonResponse({ ok: true });
-          }
         }
 
         // Handle Messages
@@ -2128,40 +1923,6 @@ export default {
 
           const lowerText = text.trim().toLowerCase();
           const isAdmin = isUserAdmin(userId, user.username, null, env);
-          const danceFlag = env.ENABLE_DANCE_STUDIO || "admin_only";
-
-          // Handle /dance command or plain text "dance" / "танець"
-          if (lowerText === "/dance" || lowerText.startsWith("/dance") || lowerText === "dance" || lowerText === "танець" || lowerText.includes("танець") || lowerText.includes("dance")) {
-            if (danceFlag === "admin_only" && !isAdmin) {
-              await sendTgMessage(chatId, "🔒 *Функція TikTok Dance Studio зараз на етапі закритого тестування для адміністраторів.*\n\nНезабаром вона стане доступною для всіх! Спробуйте інші стилі студії (LinkedIn Pro, Old Money, Blonde).", {
-                reply_markup: {
-                  inline_keyboard: [
-                    [{ text: "✨ Відкрити Студію Фото", web_app: { url: "https://aurastudio-ai.memory1024.workers.dev" } }]
-                  ]
-                }
-              });
-              return jsonResponse({ ok: true });
-            }
-
-            await sendTgMessage(chatId, "🕺 *TikTok Dance & Reels Studio (Admin Preview)*\n\nОберіть стиль вірусного танцю і надішліть фото людини (бажано по пояс або в повний зріст):", {
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    { text: "🕺 Viral House Shuffle", callback_data: "dance_viral_house_shuffle" },
-                    { text: "💃 K-Pop Hip-Hop", callback_data: "dance_kpop_hiphop_groove" }
-                  ],
-                  [
-                    { text: "🪩 Electro Rave Shuffle", callback_data: "dance_electro_rave_shuffle" },
-                    { text: "💃 Latina Salsa Groove", callback_data: "dance_latina_salsa_groove" }
-                  ],
-                  [
-                    { text: "🌐 Відкрити Web Dance Studio", web_app: { url: "https://aurastudio-ai.memory1024.workers.dev" } }
-                  ]
-                ]
-              }
-            });
-            return jsonResponse({ ok: true });
-          }
 
           // Handle /balance command or "balance" / "баланс"
           if (lowerText === "/balance" || lowerText.startsWith("/balance") || lowerText === "balance" || lowerText === "баланс" || lowerText.includes("баланс")) {
@@ -2174,7 +1935,7 @@ export default {
               if (sub) subStatus = `Активна (${sub.plan_tier.toUpperCase()})`;
             }
 
-            await sendTgMessage(chatId, `⭐️ *Ваш баланс та підписка:*\n\n• ⭐️ *Баланс Stars:* ${balance} XTR\n• 📦 *Статус підписки:* ${subStatus}\n\n_Використовуйте баланс:_\n• 📸 Студійне фото: *10 Stars*\n• 💎 Ultra-HD Cinema Skin (4K): *20 Stars*\n• 🕺 TikTok Відео-танець: *40 Stars*`, {
+            await sendTgMessage(chatId, `⭐️ *Ваш баланс та підписка:*\n\n• ⭐️ *Баланс Stars:* ${balance} XTR\n• 📦 *Статус підписки:* ${subStatus}\n\n_Використовуйте баланс:_\n• 📸 Студійне фото: *10 Stars*\n• 💎 Ultra-HD Cinema Skin (4K): *20 Stars*`, {
               reply_markup: {
                 inline_keyboard: [
                   [
@@ -2194,7 +1955,6 @@ export default {
           if (lowerText === "/help" || lowerText.startsWith("/help") || lowerText === "help" || lowerText === "допомога" || lowerText === "інструкція") {
             const helpText = "ℹ️ *AuraStudio AI — Довідка та команди:*\n\n" +
               "💎 *Ultra-HD Cinema Skin (4K)* — Макро-пори, пушкове волосся та 8K текстура (20 ⭐️)\n" +
-              "🕺 */dance* — Створити вірусне танцювальне відео з фото (40 ⭐️)\n" +
               "🏠 */start* — Головне меню та відкриття Web App\n" +
               "⭐️ */balance* — Баланс Telegram Stars та тарифи\n\n" +
               "📸 *Як створити фото:* просто надішліть будь-яке фото сюди та оберіть стиль (💎 Ultra-HD Skin, LinkedIn, Old Money, Blonde) або додайте текстовий опис.\n\n" +
@@ -2202,7 +1962,6 @@ export default {
             await sendTgMessage(chatId, helpText, {
               reply_markup: {
                 inline_keyboard: [
-                  [{ text: "🕺 Створити TikTok Танець", callback_data: "dance_viral_house_shuffle" }],
                   [{ text: "✨ Відкрити Web Studio", web_app: { url: "https://aurastudio-ai.memory1024.workers.dev" } }]
                 ]
               }
@@ -2215,238 +1974,7 @@ export default {
             const bestPhoto = photos[photos.length - 1];
             const session = await getTgSession(env, userId);
             const caption = update.message.caption || "";
-            const isDanceCaption = caption.toLowerCase().includes("танець") || caption.toLowerCase().includes("dance") || caption.startsWith("/dance");
-
-            // 1. If user previously selected a Dance style:
-            if (session.pendingAction === "dance") {
-              const templateId = session.templateId || "viral_house_shuffle";
-              const danceName = session.danceName || "TikTok Dance";
-              const targetTaskId = session.currentTaskId || `dance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null, currentTaskId: targetTaskId });
-
-              await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець (${danceName})...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
-              sendTgChatAction(chatId, "upload_video");
-
-              ctx.waitUntil((async () => {
-                const startTime = Date.now();
-                try {
-                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
-                  const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
-
-                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
-                  const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = arrayBufferToBase64(photoBuffer);
-
-                  const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
-                    image_base64: photoBase64,
-                    dance_template_id: templateId,
-                    audio_sync: true,
-                    fps: 24,
-                    height: 768,
-                    width: 512
-                  });
-
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-                  if (mData.status === "success" && mData.result_video_base64) {
-                    await recordGenerationInD1(env, {
-                      id: targetTaskId,
-                      userId,
-                      source: "telegram_bot",
-                      presetId: `dance_${templateId}`,
-                      prompt: `TikTok Dance: ${danceName}`,
-                      inputBase64: photoBase64,
-                      outputBase64: mData.result_video_base64,
-                      duration,
-                      status: "SUCCESS"
-                    });
-
-                    await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *${danceName}*\nДвигун: AuraDance 2.5 DiT`, {
-                      reply_markup: {
-                        inline_keyboard: [
-                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
-                        ]
-                      }
-                    });
-                  } else {
-                    throw new Error(mData.message || "Dance engine failed to return video result");
-                  }
-                } catch (err) {
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-                  logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
-                  await recordGenerationInD1(env, {
-                    id: targetTaskId,
-                    userId,
-                    source: "telegram_bot",
-                    presetId: `dance_${templateId}`,
-                    prompt: `TikTok Dance: ${danceName}`,
-                    inputBase64: null,
-                    outputBase64: null,
-                    duration,
-                    status: "FAILED",
-                    errorMessage: err.message
-                  });
-                  await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
-                }
-              })());
-              return jsonResponse({ ok: true });
-            }
-
-            // 2. If user previously selected a Preset:
-            if (session.pendingAction === "preset") {
-              const presetKey = session.presetKey || "linkedin";
-              const prompt = session.prompt || "enhance photo to studio magazine portrait";
-              const isUltraHd = presetKey === "ultrahd_skin";
-              const steps = isUltraHd ? 28 : 22;
-              const negPrompt = isUltraHd
-                ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes"
-                : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes";
-              const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN (4K MACRO)" : presetKey.toUpperCase();
-              const targetTaskId = session.currentTaskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, pendingAction: null, pendingStyle: null, currentTaskId: targetTaskId });
-
-              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію (${styleLabel})...*\n\n_${isUltraHd ? "Формуємо індивідуальні пори, пушкове волосся та мікрорельєф шкіри (~25-30с)" : "Зберігаємо 100% рис обличчя та деталізацію шкіри (~20-25с)"}_`);
-              sendTgChatAction(chatId, "upload_photo");
-
-              ctx.waitUntil((async () => {
-                const startTime = Date.now();
-                try {
-                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
-                  const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
-
-                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
-                  const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = arrayBufferToBase64(photoBuffer);
-
-                  const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
-                    image_base64: photoBase64,
-                    prompt: prompt,
-                    negative_prompt: negPrompt,
-                    steps: steps,
-                    cfg: 1.95,
-                    seed: 888424
-                  });
-
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-                  if (mData.status === "success" && mData.result_base64) {
-                    await recordGenerationInD1(env, {
-                      id: targetTaskId,
-                      userId,
-                      source: "telegram_bot",
-                      presetId: presetKey,
-                      prompt,
-                      inputBase64: photoBase64,
-                      outputBase64: mData.result_base64,
-                      duration,
-                      status: "SUCCESS"
-                    });
-
-                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*\nДвигун: Qwen 2.5 DiT 20B`, {
-                      reply_markup: {
-                        inline_keyboard: [
-                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
-                        ]
-                      }
-                    });
-                  } else {
-                    throw new Error(mData.message || "Model failed to return image result");
-                  }
-                } catch (err) {
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-                  logCriticalError(env, ctx, "telegram_photo", err.message, userId);
-                  await recordGenerationInD1(env, {
-                    id: targetTaskId,
-                    userId,
-                    source: "telegram_bot",
-                    presetId: presetKey,
-                    prompt,
-                    inputBase64: null,
-                    outputBase64: null,
-                    duration,
-                    status: "FAILED",
-                    errorMessage: err.message
-                  });
-                  await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
-                }
-              })());
-              return jsonResponse({ ok: true });
-            }
-
-            if (isDanceCaption) {
-              const targetTaskId = session.currentTaskId || `dance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-              await setTgSession(env, userId, { lastPhotoFileId: bestPhoto.file_id, currentTaskId: targetTaskId });
-
-              await sendTgMessage(chatId, `🕺 *Генеруємо TikTok танець за вашим запитом...*\n\n_Нейромережа LivePortrait/DiT анімує людину на GPU A10G (~25-35с)_`);
-              ctx.waitUntil((async () => {
-                const startTime = Date.now();
-                try {
-                  const bestPhoto = photos[photos.length - 1];
-                  const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${bestPhoto.file_id}`);
-                  const fileData = await fileRes.json();
-                  if (!fileData.ok) throw new Error("Could not fetch photo from Telegram: " + (fileData.description || ""));
-
-                  const photoBlobRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`);
-                  const photoBuffer = await photoBlobRes.arrayBuffer();
-                  const photoBase64 = arrayBufferToBase64(photoBuffer);
-
-                  const mData = await callModalWithFallback(MODAL_VIDEO_ENDPOINTS, {
-                    image_base64: photoBase64,
-                    dance_template_id: "viral_house_shuffle",
-                    audio_sync: true,
-                    fps: 24,
-                    height: 768,
-                    width: 512
-                  });
-
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-                  if (mData.status === "success" && mData.result_video_base64) {
-                    await recordGenerationInD1(env, {
-                      id: targetTaskId,
-                      userId,
-                      source: "telegram_bot",
-                      presetId: "dance_viral_house_shuffle",
-                      prompt: "TikTok Dance: Viral House Shuffle",
-                      inputBase64: photoBase64,
-                      outputBase64: mData.result_video_base64,
-                      duration,
-                      status: "SUCCESS"
-                    });
-
-                    await sendTgVideo(chatId, mData.result_video_base64, `🕺 *Ваш TikTok танець готовий!*\n\nСтиль: *Viral House Shuffle*\nДвигун: AuraDance 2.5 DiT`, {
-                      reply_markup: {
-                        inline_keyboard: [
-                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
-                        ]
-                      }
-                    });
-                  } else {
-                    throw new Error(mData.message || "Dance engine failed to return video result");
-                  }
-                } catch (err) {
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-                  logCriticalError(env, ctx, "telegram_dance_video", err.message, userId);
-                  await recordGenerationInD1(env, {
-                    id: targetTaskId,
-                    userId,
-                    source: "telegram_bot",
-                    presetId: "dance_viral_house_shuffle",
-                    prompt: "TikTok Dance: Viral House Shuffle",
-                    inputBase64: null,
-                    outputBase64: null,
-                    duration,
-                    status: "FAILED",
-                    errorMessage: err.message
-                  });
-                  await sendTgMessage(chatId, `❌ Помилка генерації танцю: ${err.message}`);
-                }
-              })());
-              return jsonResponse({ ok: true });
-            }
+            // 1. If user previously selected a Preset:
 
             if (caption) {
               const targetTaskId = session.currentTaskId || `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -2552,15 +2080,13 @@ export default {
               })());
 
               // Offer Preset Selection Buttons
-              await sendTgMessage(chatId, `📸 *Фото отримано!* Оберіть бажаний стиль або згенеруйте відео-танець:`, {
+              await sendTgMessage(chatId, `📸 *Фото отримано!* Оберіть бажаний стиль:`, {
                 reply_markup: {
                   inline_keyboard: [
                     [
                       { text: "💎 Ultra-HD Macro Skin (4K)", callback_data: "preset_ultrahd_skin" },
-                      { text: "🕺 TikTok Танець", callback_data: "dance_viral_house_shuffle" }
+                      { text: "💼 LinkedIn Pro", callback_data: "preset_linkedin" }
                     ],
-                    [
-                      { text: "💼 LinkedIn Pro", callback_data: "preset_linkedin" },
                       { text: "🍸 Old Money", callback_data: "preset_old_money" }
                     ],
                     [
@@ -2677,9 +2203,6 @@ export default {
           const welcomeText = "✨ *Ласкаво просимо до AuraStudio AI!* ✨\n\n🎨 *Студійні портрети, ділові фото та стильні луки за 30 секунд!*\n\n• 📸 *LinkedIn Pro Headshot*\n• 👗 *Old Money Aesthetic*\n• 🌴 *Bali Sunset Travel*\n\n👇 *Оберіть дію або надішліть фото:*";
           const webUrl = "https://aurastudio-ai.memory1024.workers.dev";
           const welcomeButtons = [];
-          if (isAdmin || danceFlag !== "admin_only") {
-            welcomeButtons.push([{ text: "🕺 TikTok Dance Studio (Admin)", callback_data: "dance_viral_house_shuffle" }]);
-          }
           welcomeButtons.push([{ text: "✨ Відкрити AI Studio (Web App)", web_app: { url: webUrl } }]);
           welcomeButtons.push([{ text: "⭐️ Мій Баланс Stars / Підписка", callback_data: "buy_starter" }]);
           welcomeButtons.push([{ text: "🌐 Відкрити веб-сайт", url: webUrl }]);
