@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark scroll-smooth">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -9,16 +9,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
                         brand: {
-                            50: '#f5f3ff',
-                            100: '#ede9fe',
-                            500: '#8b5cf6',
-                            600: '#7c3aed',
-                            700: '#6d28d9',
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        },
+                        qwen: {
+                            indigo: '#4F46E5',
+                            violet: '#6366F1',
+                            cyan: '#06B6D4',
+                            sky: '#0EA5E9'
                         }
                     }
                 }
@@ -26,9 +31,9 @@
         }
     </script>
     <!-- Mobile & PWA Optimization -->
-    <meta name="theme-color" content="#030712">
+    <meta name="theme-color" content="#F8FAFC">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <!-- Telegram Mini App WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Google Identity Services (GIS) -->
@@ -36,91 +41,101 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+        body {
+            background-color: #F8FAFC;
+            background-image: 
+                radial-gradient(at 50% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 60%),
+                radial-gradient(at 100% 0%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
+        }
         .gradient-text {
-            background: linear-gradient(135deg, #c084fc 0%, #f472b6 50%, #60a5fa 100%);
+            background: linear-gradient(135deg, #4F46E5 0%, #6366F1 50%, #06B6D4 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         .glass-card {
-            background: rgba(17, 24, 39, 0.75);
+            background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+        }
+        .glass-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
         }
         .glass-input {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
         }
         .glass-input:focus-within {
-            border-color: rgba(168, 85, 247, 0.6);
-            box-shadow: 0 0 25px -5px rgba(168, 85, 247, 0.25);
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12), 0 10px 25px -5px rgba(15, 23, 42, 0.06);
         }
         textarea::-webkit-scrollbar {
             width: 6px;
         }
         textarea::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(0, 0, 0, 0.12);
             border-radius: 4px;
         }
     </style>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-sans antialiased selection:bg-purple-500 selection:text-white">
+<body class="bg-[#F8FAFC] text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- Header / Top Bar (Claude/GPT style) -->
-    <header class="sticky top-0 z-40 glass-card border-b border-gray-800/80">
+    <!-- Header / Top Bar (Clean Modern AI Portal Style) -->
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/80">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
             <!-- Brand -->
             <div class="flex items-center gap-3">
                 <a href="/" class="flex items-center gap-2.5 group">
-                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-105 transition">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 flex items-center justify-center shadow-md shadow-indigo-500/20 group-hover:scale-105 transition">
                         <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
                     </div>
-                    <span class="text-lg font-bold tracking-tight text-white">AuraStudio<span class="text-purple-400">.AI</span></span>
+                    <span class="text-lg font-bold tracking-tight text-slate-900">AuraStudio<span class="text-indigo-600">.AI</span></span>
                 </a>
-                <span class="hidden sm:inline-block text-[11px] px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 font-mono">Qwen 2.5 DiT</span>
+                <span class="hidden sm:inline-block text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 font-mono font-medium">Qwen 2.5 DiT</span>
             </div>
 
             <!-- Nav Actions & Modals -->
             <div class="flex items-center gap-2 sm:gap-3">
-                <a href="https://t.me/thing_intellect_bot" target="_blank" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800/80 rounded-xl transition flex items-center gap-1.5" title="Open Telegram Bot">
+                <a href="https://t.me/thing_intellect_bot" target="_blank" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition flex items-center gap-1.5" title="Open Telegram Bot">
                     <i data-lucide="send" class="w-3.5 h-3.5 text-[#24A1DE]"></i>
                     <span class="hidden sm:inline">Telegram Bot</span>
                 </a>
 
-                <button onclick="openCatalogModal()" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800/80 rounded-xl transition flex items-center gap-1.5">
-                    <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-purple-400"></i>
+                <button onclick="openCatalogModal()" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition flex items-center gap-1.5">
+                    <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-indigo-600"></i>
                     <span data-i18n="nav_catalog">Styles</span>
                 </button>
 
                 <!-- Admin Only Telemetry Link -->
-                <a href="/dashboard" id="telemetryNavBtn" target="_blank" class="hidden px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-purple-300 hover:bg-gray-800/80 rounded-xl transition items-center gap-1.5">
-                    <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <a href="/dashboard" id="telemetryNavBtn" target="_blank" class="hidden px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition items-center gap-1.5">
+                    <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-600"></i>
                     <span data-i18n="nav_telemetry">Live Stats</span>
                 </a>
 
-                <button onclick="openPaywall()" class="px-3.5 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl shadow-md shadow-purple-600/20 transition flex items-center gap-1.5">
+                <button onclick="openPaywall()" class="px-3.5 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:opacity-95 rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
                     <i data-lucide="zap" class="w-3.5 h-3.5 fill-current"></i>
                     <span data-i18n="btn_pro">Upgrade</span>
                 </button>
 
                 <!-- Auth Badge / Button -->
                 <div id="authStatusContainer" class="flex items-center gap-1.5">
-                    <button onclick="openPaywall()" id="userStarsBadge" class="hidden items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 rounded-xl border border-amber-500/30 text-amber-300 transition text-xs font-semibold" title="Ваш баланс Telegram Stars">
+                    <button onclick="openPaywall()" id="userStarsBadge" class="hidden items-center gap-1 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 rounded-xl border border-amber-300 text-amber-700 transition text-xs font-semibold" title="Ваш баланс Telegram Stars">
                         <span>⭐</span>
                         <span id="userStarsAmount">0</span>
                     </button>
-                    <button onclick="openAuthModal()" id="loginNavBtn" class="px-3 py-1.5 text-xs font-semibold text-gray-200 glass-card hover:bg-gray-800 rounded-xl transition flex items-center gap-1.5">
-                        <i data-lucide="log-in" class="w-3.5 h-3.5 text-purple-400"></i>
+                    <button onclick="openAuthModal()" id="loginNavBtn" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm rounded-xl transition flex items-center gap-1.5">
+                        <i data-lucide="log-in" class="w-3.5 h-3.5 text-indigo-600"></i>
                         <span data-i18n="btn_login">Sign In</span>
                     </button>
-                    <button onclick="openUserModal()" id="userBadge" class="hidden items-center gap-2 px-3 py-1.5 glass-card hover:bg-gray-800 rounded-xl border border-purple-500/30 transition">
-                        <div class="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px] font-bold" id="userAvatarLetter">U</div>
-                        <span class="text-xs font-medium text-gray-200" id="userNameLabel">User</span>
+                    <button onclick="openUserModal()" id="userBadge" class="hidden items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm rounded-xl transition">
+                        <div class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold" id="userAvatarLetter">U</div>
+                        <span class="text-xs font-medium text-slate-800" id="userNameLabel">User</span>
                     </button>
                 </div>
 
                 <!-- Language Toggle -->
-                <button onclick="toggleLanguage()" class="p-1.5 text-xs font-semibold glass-card hover:bg-gray-800 rounded-xl text-gray-300 transition flex items-center gap-1" title="Switch Language">
+                <button onclick="toggleLanguage()" class="p-1.5 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 shadow-sm rounded-xl text-slate-700 transition flex items-center gap-1" title="Switch Language">
                     <span id="langFlag">🇺🇸</span>
                     <span id="langLabel" class="text-[11px]">EN</span>
                 </button>
@@ -133,41 +148,41 @@
         
         <!-- Studio Welcome Greeting -->
         <div id="greetingContainer" class="text-center space-y-3 pt-4 sm:pt-6">
-            <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight" data-i18n="greeting_title">
+            <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900" data-i18n="greeting_title">
                 What would you like to create?
             </h1>
-            <p class="text-sm sm:text-base text-gray-400 max-w-lg mx-auto" data-i18n="greeting_subtitle">
-                Upload any selfie or portrait, then describe your desired transformation or pick a style using <span class="text-purple-400 font-mono font-semibold">/</span>.
+            <p class="text-sm sm:text-base text-slate-500 max-w-lg mx-auto" data-i18n="greeting_subtitle">
+                Describe any image to generate with Qwen 2.1, or attach a photo to edit styles.
             </p>
         </div>
 
 
-        <!-- Central Modern AI Prompt & Attachment Studio Box (Claude/GPT style) -->
+        <!-- Central Modern AI Prompt & Attachment Studio Box (Light Modern AI Portal style) -->
         <div class="w-full relative" id="photoStudioBox">
-            <div id="dropZone" class="glass-input w-full rounded-3xl p-4 sm:p-5 shadow-2xl transition-all relative border border-gray-800">
+            <div id="dropZone" class="glass-input w-full rounded-3xl p-4 sm:p-5 transition-all relative">
                 
                 <div class="flex flex-wrap items-center gap-2 mb-3">
                     <!-- Attached Image Tag / Thumbnail Pill -->
-                    <div id="attachedImagePreviewBox" class="hidden items-center gap-3 p-2 rounded-2xl bg-gray-900/80 border border-purple-500/30 w-fit max-w-full">
-                        <div class="relative w-12 h-12 rounded-xl overflow-hidden bg-black/50 shrink-0 border border-gray-700">
+                    <div id="attachedImagePreviewBox" class="hidden items-center gap-3 p-2 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 w-fit max-w-full">
+                        <div class="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 shadow-sm">
                             <img id="attachedThumbImg" src="" alt="Attached" class="w-full h-full object-cover">
                         </div>
                         <div class="text-left pr-2 overflow-hidden">
-                            <p class="text-xs font-semibold text-purple-300 truncate" id="attachedFileName">photo.jpg</p>
-                            <p class="text-[10px] text-gray-400" data-i18n="msg_photo_ready">Photo attached & ready</p>
+                            <p class="text-xs font-semibold text-indigo-900 truncate" id="attachedFileName">photo.jpg</p>
+                            <p class="text-[10px] text-slate-500" data-i18n="msg_photo_ready">Photo attached & ready</p>
                         </div>
-                        <button onclick="clearAttachedImage()" class="p-1 rounded-lg text-gray-400 hover:text-red-400 hover:bg-gray-800 transition" title="Remove photo">
+                        <button onclick="clearAttachedImage()" class="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-slate-200/80 transition" title="Remove photo">
                             <i data-lucide="x" class="w-4 h-4"></i>
                         </button>
                     </div>
 
                     <!-- Active Preset Badge (with Close Button and Esc support) -->
-                    <div id="activePresetPill" class="hidden items-center gap-2 px-3 py-2 rounded-2xl bg-purple-600/20 border border-purple-500/40 text-xs text-purple-300 w-fit max-w-full">
+                    <div id="activePresetPill" class="hidden items-center gap-2 px-3 py-2 rounded-2xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-700 w-fit max-w-full font-medium">
                         <div class="flex items-center gap-1.5">
-                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-purple-400"></i>
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
                             <span class="font-semibold" id="activePresetPillLabel">Preset</span>
                         </div>
-                        <button onclick="clearActivePreset()" class="p-0.5 rounded-lg text-gray-400 hover:text-white hover:bg-purple-500/30 transition ml-1" title="Remove preset (Esc)">
+                        <button onclick="clearActivePreset()" class="p-0.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-indigo-100 transition ml-1" title="Remove preset (Esc)">
                             <i data-lucide="x" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>
@@ -177,137 +192,137 @@
                 <textarea 
                     id="mainPromptInput" 
                     rows="3" 
-                    placeholder="Describe how to transform this photo, or type '/' for designer styles..."
+                    placeholder="Describe an image to generate from scratch, or attach a photo to edit styles (type '/' for presets)..."
                     data-i18n-placeholder="prompt_placeholder"
                     oninput="handlePromptInput(event)"
                     onkeydown="handlePromptKeydown(event)"
-                    class="w-full bg-transparent text-sm sm:text-base text-gray-100 placeholder-gray-500 focus:outline-none resize-none leading-relaxed"
+                    class="w-full bg-transparent text-sm sm:text-base text-slate-900 placeholder-slate-400 focus:outline-none resize-none leading-relaxed"
                 ></textarea>
 
                 <!-- Slash Commands Autocomplete Palette -->
-                <div id="slashMenu" class="hidden absolute left-4 right-4 bottom-16 sm:bottom-20 z-30 glass-card rounded-2xl p-2 shadow-2xl border border-purple-500/40 divide-y divide-gray-800/60 max-h-72 overflow-y-auto">
-                    <div class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-purple-400">
+                <div id="slashMenu" class="hidden absolute left-4 right-4 bottom-16 sm:bottom-20 z-30 bg-white/95 backdrop-blur-md rounded-2xl p-2 shadow-2xl border border-indigo-100 divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                    <div class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-600">
                         Designer Style Presets (Slash Commands)
                     </div>
                     
-                    <button onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-amber-600/20 flex items-center justify-between transition group border border-amber-500/20 bg-amber-500/5">
+                    <button onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-amber-50 flex items-center justify-between transition group border border-amber-200 bg-amber-50/40">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">💎</span>
                             <div>
                                 <div class="flex items-center gap-1.5">
-                                    <span class="text-xs font-bold text-amber-200 group-hover:text-amber-100">/ultrahd</span>
-                                    <span class="px-1.5 py-0.2 bg-amber-500/30 text-amber-300 text-[9px] font-bold rounded">20 ⭐️</span>
+                                    <span class="text-xs font-bold text-amber-900 group-hover:text-amber-950">/ultrahd</span>
+                                    <span class="px-1.5 py-0.2 bg-amber-200/80 text-amber-900 text-[9px] font-bold rounded">20 ⭐️</span>
                                 </div>
-                                <span class="text-[11px] text-gray-400 block">4K Macro Pores, peach fuzz vellus hair & hyper-realistic skin</span>
+                                <span class="text-[11px] text-slate-500 block">4K Macro Pores, peach fuzz vellus hair & hyper-realistic skin</span>
                             </div>
                         </div>
-                        <span class="text-[10px] text-amber-400 font-mono font-bold">Ultra Pro</span>
+                        <span class="text-[10px] text-amber-700 font-mono font-bold">Ultra Pro</span>
                     </button>
 
-                    <button onclick="applySlashPreset('headshot_linkedin', '💼 /linkedin', 'change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
+                    <button onclick="applySlashPreset('headshot_linkedin', '💼 /linkedin', 'change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">💼</span>
                             <div>
-                                <span class="text-xs font-bold text-gray-200 group-hover:text-purple-300">/linkedin</span>
-                                <span class="text-[11px] text-gray-400 block">Sharp dark navy suit & clean corporate studio headshot</span>
+                                <span class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">/linkedin</span>
+                                <span class="text-[11px] text-slate-500 block">Sharp dark navy suit & clean corporate studio headshot</span>
                             </div>
                         </div>
-                        <span class="text-[10px] text-gray-500 font-mono">Popular</span>
+                        <span class="text-[10px] text-slate-400 font-mono">Popular</span>
                     </button>
 
-                    <button onclick="applySlashPreset('fashion_old_money', '🍸 /oldmoney', 'change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers in minimal luxury setting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
+                    <button onclick="applySlashPreset('fashion_old_money', '🍸 /oldmoney', 'change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers in minimal luxury setting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">🍸</span>
                             <div>
-                                <span class="text-xs font-bold text-gray-200 group-hover:text-purple-300">/oldmoney</span>
-                                <span class="text-[11px] text-gray-400 block">Beige cashmere sweater & effortless luxury aesthetic</span>
+                                <span class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">/oldmoney</span>
+                                <span class="text-[11px] text-slate-500 block">Beige cashmere sweater & effortless luxury aesthetic</span>
                             </div>
                         </div>
                     </button>
 
-                    <button onclick="applySlashPreset('hair_blonde', '👱‍♀️ /blonde', 'change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
+                    <button onclick="applySlashPreset('hair_blonde', '👱‍♀️ /blonde', 'change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">👱‍♀️</span>
                             <div>
-                                <span class="text-xs font-bold text-gray-200 group-hover:text-purple-300">/blonde</span>
-                                <span class="text-[11px] text-gray-400 block">Natural sun-kissed soft blonde hairstyle restyle</span>
+                                <span class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">/blonde</span>
+                                <span class="text-[11px] text-slate-500 block">Natural sun-kissed soft blonde hairstyle restyle</span>
                             </div>
                         </div>
                     </button>
 
-                    <button onclick="applySlashPreset('travel_bali', '🌴 /bali', 'change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
+                    <button onclick="applySlashPreset('travel_bali', '🌴 /bali', 'change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">🌴</span>
                             <div>
-                                <span class="text-xs font-bold text-gray-200 group-hover:text-purple-300">/bali</span>
-                                <span class="text-[11px] text-gray-400 block">Bali sunset infinity pool & tropical golden hour light</span>
+                                <span class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">/bali</span>
+                                <span class="text-[11px] text-slate-500 block">Bali sunset infinity pool & tropical golden hour light</span>
                             </div>
                         </div>
                     </button>
 
-                    <button onclick="applySlashPreset('style_cyberpunk', '🌆 /cyberpunk', 'change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing purple reflections')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
+                    <button onclick="applySlashPreset('style_cyberpunk', '🌆 /cyberpunk', 'change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing purple reflections')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">🌆</span>
                             <div>
-                                <span class="text-xs font-bold text-gray-200 group-hover:text-purple-300">/cyberpunk</span>
-                                <span class="text-[11px] text-gray-400 block">Neon night reflections, leather jacket & futuristic atmosphere</span>
+                                <span class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">/cyberpunk</span>
+                                <span class="text-[11px] text-slate-500 block">Neon night reflections, leather jacket & futuristic atmosphere</span>
                             </div>
                         </div>
                     </button>
 
-                    <button onclick="applySlashPreset('glamour_hd', '✨ /glamour', 'change style to high fashion magazine editorial focus with natural delicate skin microtexture and soft ambient lighting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
+                    <button onclick="applySlashPreset('glamour_hd', '✨ /glamour', 'change style to high fashion magazine editorial focus with natural delicate skin microtexture and soft ambient lighting')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">✨</span>
                             <div>
-                                <span class="text-xs font-bold text-gray-200 group-hover:text-purple-300">/glamour</span>
-                                <span class="text-[11px] text-gray-400 block">Vogue editorial focus with natural skin pores & lighting</span>
+                                <span class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">/glamour</span>
+                                <span class="text-[11px] text-slate-500 block">Vogue editorial focus with natural skin pores & lighting</span>
                             </div>
                         </div>
                     </button>
 
-                    <button onclick="applySlashPreset('meme_muppet', '🎭 /muppet', 'convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
+                    <button onclick="applySlashPreset('meme_muppet', '🎭 /muppet', 'convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-pink-50/60 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">🎭</span>
                             <div>
-                                <span class="text-xs font-bold text-pink-300 group-hover:text-pink-200">/muppet</span>
-                                <span class="text-[11px] text-gray-400 block">Sesame Street / Muppet meme character in real life</span>
+                                <span class="text-xs font-bold text-pink-700 group-hover:text-pink-800">/muppet</span>
+                                <span class="text-[11px] text-slate-500 block">Sesame Street / Muppet meme character in real life</span>
                             </div>
                         </div>
-                        <span class="text-[10px] bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded-full font-bold">VIRAL</span>
+                        <span class="text-[10px] bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold">VIRAL</span>
                     </button>
 
-                    <button onclick="applySlashPreset('meme_goofy', '🤪 /goofy3d', 'change style to funny 3D animated caricature character with exaggerated goofy facial expression and bright vibrant colors')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-purple-600/20 flex items-center justify-between transition group">
+                    <button onclick="applySlashPreset('meme_goofy', '🤪 /goofy3d', 'change style to funny 3D animated caricature character with exaggerated goofy facial expression and bright vibrant colors')" class="w-full px-3 py-2 text-left rounded-xl hover:bg-indigo-50/70 flex items-center justify-between transition group">
                         <div class="flex items-center gap-2.5">
                             <span class="text-lg">🤪</span>
                             <div>
-                                <span class="text-xs font-bold text-pink-300 group-hover:text-pink-200">/goofy3d</span>
-                                <span class="text-[11px] text-gray-400 block">3D Pixar claymation exaggerated funny caricature</span>
+                                <span class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">/goofy3d</span>
+                                <span class="text-[11px] text-slate-500 block">3D Pixar claymation exaggerated funny caricature</span>
                             </div>
                         </div>
                     </button>
                 </div>
 
                 <!-- Input Footer Toolbar -->
-                <div class="flex items-center justify-between pt-3 border-t border-gray-800/80 mt-2">
+                <div class="flex items-center justify-between pt-3 border-t border-slate-100 mt-2">
                     <div class="flex items-center gap-2">
                         <!-- Attach File Button -->
                         <input type="file" id="mainFileInput" accept="image/*" class="hidden" onchange="handleFileInput(this.files[0])">
-                        <button onclick="document.getElementById('mainFileInput').click()" class="px-3 py-2 rounded-xl glass-card hover:bg-gray-800 text-gray-300 hover:text-white text-xs font-medium transition flex items-center gap-1.5 shadow-sm" title="Attach photo">
-                            <i data-lucide="paperclip" class="w-3.5 h-3.5 text-purple-400"></i>
+                        <button onclick="document.getElementById('mainFileInput').click()" class="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-medium transition flex items-center gap-1.5 shadow-sm" title="Attach photo">
+                            <i data-lucide="paperclip" class="w-3.5 h-3.5 text-indigo-600"></i>
                             <span data-i18n="btn_attach">Attach Photo</span>
                         </button>
 
                         <!-- Presets / Slash button -->
-                        <button onclick="toggleSlashMenu()" class="px-3 py-2 rounded-xl glass-card hover:bg-gray-800 text-gray-300 hover:text-white text-xs font-medium transition flex items-center gap-1" title="Choose Preset">
-                            <span class="font-mono text-purple-400 font-bold">/</span>
+                        <button onclick="toggleSlashMenu()" class="px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-medium transition flex items-center gap-1 shadow-sm" title="Choose Preset">
+                            <span class="font-mono text-indigo-600 font-bold">/</span>
                             <span data-i18n="btn_styles">Presets</span>
                         </button>
                     </div>
 
                     <!-- Generate / Send Button -->
-                    <div class="flex items-center gap-2">
-                        <span class="text-[11px] text-gray-500 hidden sm:inline" id="promptCounterHint">5 Free Daily</span>
-                        <button onclick="triggerGeneration()" id="generateBtn" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold text-xs transition shadow-lg shadow-purple-600/30 flex items-center gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-[11px] text-slate-400 font-medium hidden sm:inline" id="promptCounterHint">5 Free Daily</span>
+                        <button onclick="triggerGeneration()" id="generateBtn" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:opacity-95 text-white font-semibold text-xs transition shadow-md shadow-indigo-600/25 flex items-center gap-2">
                             <span data-i18n="btn_generate">Generate</span>
                             <i data-lucide="arrow-up" class="w-4 h-4"></i>
                         </button>
@@ -317,102 +332,99 @@
 
             <!-- Quick Suggestion Style Chips (Claude / Gemini style) -->
             <div class="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs">
-                <span class="text-gray-500 text-[11px]">Quick styles:</span>
-                <button onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus')" class="px-3 py-1.5 rounded-xl glass-card border border-amber-500/50 text-amber-300 hover:text-white transition flex items-center gap-1 bg-amber-500/10 shadow-sm shadow-amber-500/20">
-                    <span>💎</span> <span>/ultrahd</span> <span class="text-[9px] bg-amber-500/30 px-1 rounded font-bold">20 ⭐️</span>
+                <span class="text-slate-400 text-[11px]">Quick styles:</span>
+                <button onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus')" class="px-3 py-1.5 rounded-xl border border-amber-300 text-amber-800 hover:text-amber-900 transition flex items-center gap-1 bg-amber-50 shadow-sm hover:bg-amber-100/70">
+                    <span>💎</span> <span>/ultrahd</span> <span class="text-[9px] bg-amber-200/80 px-1 rounded font-bold">20 ⭐️</span>
                 </button>
-                <button onclick="applySlashPreset('meme_muppet', '🎭 /muppet', 'convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo')" class="px-3 py-1.5 rounded-xl glass-card border border-pink-500/40 text-pink-300 hover:text-white transition flex items-center gap-1">
+                <button onclick="applySlashPreset('meme_muppet', '🎭 /muppet', 'convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo')" class="px-3 py-1.5 rounded-xl border border-pink-200 text-pink-700 hover:text-pink-800 transition flex items-center gap-1 bg-pink-50 shadow-sm hover:bg-pink-100/70">
                     <span>🎭</span> <span>/muppet</span>
                 </button>
-                <button onclick="applySlashPreset('meme_goofy', '🤪 /goofy3d', 'change style to funny 3D animated caricature character with exaggerated goofy facial expression and bright vibrant colors')" class="px-3 py-1.5 rounded-xl glass-card border border-pink-500/40 text-pink-300 hover:text-white transition flex items-center gap-1">
+                <button onclick="applySlashPreset('meme_goofy', '🤪 /goofy3d', 'change style to funny 3D animated caricature character with exaggerated goofy facial expression and bright vibrant colors')" class="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition flex items-center gap-1 bg-white shadow-sm hover:bg-slate-50">
                     <span>🤪</span> <span>/goofy3d</span>
                 </button>
-                <button onclick="applySlashPreset('headshot_linkedin', '💼 /linkedin', 'change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting')" class="px-3 py-1.5 rounded-xl glass-card hover:border-purple-500/50 text-gray-300 hover:text-white transition flex items-center gap-1">
+                <button onclick="applySlashPreset('headshot_linkedin', '💼 /linkedin', 'change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting')" class="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition flex items-center gap-1 bg-white shadow-sm hover:bg-slate-50">
                     <span>💼</span> <span>/linkedin</span>
                 </button>
-                <button onclick="applySlashPreset('fashion_old_money', '🍸 /oldmoney', 'change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers in minimal luxury setting')" class="px-3 py-1.5 rounded-xl glass-card hover:border-purple-500/50 text-gray-300 hover:text-white transition flex items-center gap-1">
+                <button onclick="applySlashPreset('fashion_old_money', '🍸 /oldmoney', 'change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers in minimal luxury setting')" class="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition flex items-center gap-1 bg-white shadow-sm hover:bg-slate-50">
                     <span>🍸</span> <span>/oldmoney</span>
                 </button>
-                <button onclick="applySlashPreset('hair_blonde', '👱‍♀️ /blonde', 'change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights')" class="px-3 py-1.5 rounded-xl glass-card hover:border-purple-500/50 text-gray-300 hover:text-white transition flex items-center gap-1">
+                <button onclick="applySlashPreset('hair_blonde', '👱‍♀️ /blonde', 'change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights')" class="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 transition flex items-center gap-1 bg-white shadow-sm hover:bg-slate-50">
                     <span>👱‍♀️</span> <span>/blonde</span>
                 </button>
             </div>
-        </div>
-
-
         <!-- Live Loading State (Active Generation) -->
-        <div id="generationLoadingBox" class="hidden w-full max-w-2xl glass-card rounded-3xl p-8 text-center space-y-6 border border-purple-500/40 shadow-2xl">
+        <div id="generationLoadingBox" class="hidden w-full max-w-2xl bg-white rounded-3xl p-8 text-center space-y-6 border border-indigo-100 shadow-xl">
             <div class="relative w-20 h-20 mx-auto flex items-center justify-center">
-                <div class="absolute inset-0 rounded-full border-4 border-purple-500/20 animate-ping"></div>
-                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white shadow-xl shadow-purple-500/40 animate-pulse">
+                <div class="absolute inset-0 rounded-full border-4 border-indigo-400/20 animate-ping"></div>
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30 animate-pulse">
                     <i data-lucide="sparkles" class="w-8 h-8"></i>
                 </div>
             </div>
 
             <div class="space-y-2">
-                <h3 class="text-xl font-bold tracking-tight text-white" id="loadingStatusText">Rendering with Qwen 2.1 DiT...</h3>
-                <p class="text-xs text-gray-400" id="loadingSubText">Synthesizing photo (~20-25s)</p>
+                <h3 class="text-xl font-bold tracking-tight text-slate-900" id="loadingStatusText">Rendering with Qwen 2.1 DiT...</h3>
+                <p class="text-xs text-slate-500" id="loadingSubText">Synthesizing photo (~20-25s)</p>
             </div>
 
-            <div class="w-full max-w-md mx-auto bg-gray-900 rounded-full h-2 overflow-hidden border border-gray-800">
-                <div id="loadingProgressBar" class="bg-gradient-to-r from-purple-600 to-pink-500 h-full w-0 transition-all duration-300"></div>
+            <div class="w-full max-w-md mx-auto bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                <div id="loadingProgressBar" class="bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 h-full w-0 transition-all duration-300"></div>
             </div>
         </div>
 
         <!-- Result Canvas Card (Before / After & Action Toolbar) -->
-        <div id="resultCanvasBox" class="hidden w-full max-w-3xl glass-card rounded-3xl p-6 space-y-6 border border-purple-500/30 shadow-2xl">
+        <div id="resultCanvasBox" class="hidden w-full max-w-3xl bg-white rounded-3xl p-6 space-y-6 border border-slate-200 shadow-xl">
             <!-- Header of result -->
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span class="text-xs font-bold text-white uppercase tracking-wider" id="resultPresetTag">AI Transformation</span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-xs font-bold text-slate-900 uppercase tracking-wider" id="resultPresetTag">AI Transformation</span>
                 </div>
-                <div class="text-xs text-gray-400 font-mono" id="resultDurationTag">22.4s</div>
+                <div class="text-xs text-slate-500 font-mono" id="resultDurationTag">22.4s</div>
             </div>
 
             <!-- Comparison Grid (Side by Side) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="resultGrid">
                 <!-- Original Input -->
                 <div class="space-y-2" id="resultInputCol">
-                    <div class="text-xs font-semibold text-gray-400 flex items-center justify-between px-1">
+                    <div class="text-xs font-semibold text-slate-500 flex items-center justify-between px-1">
                         <span>Original Input</span>
                     </div>
-                    <div class="aspect-square rounded-2xl overflow-hidden bg-gray-900 border border-gray-800 shadow-inner">
+                    <div class="aspect-square rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 shadow-inner">
                         <img id="resultInputImg" src="" alt="Input" class="w-full h-full object-cover">
                     </div>
                 </div>
 
                 <!-- Generated Result -->
                 <div class="space-y-2">
-                    <div class="text-xs font-semibold text-purple-400 flex items-center justify-between px-1">
+                    <div class="text-xs font-semibold text-indigo-700 flex items-center justify-between px-1">
                         <span>✨ AI Generated (DiT 20B)</span>
-                        <span class="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full font-bold">8K HD</span>
+                        <span class="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-bold">8K HD</span>
                     </div>
-                    <div class="aspect-square rounded-2xl overflow-hidden bg-gray-900 border border-purple-500/40 shadow-2xl relative group">
+                    <div class="aspect-square rounded-2xl overflow-hidden bg-slate-50 border border-indigo-200 shadow-lg relative group">
                         <img id="resultOutputImg" src="" alt="Result" class="w-full h-full object-cover cursor-pointer" onclick="openFullImageModal()">
-                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center pointer-events-none">
-                            <span class="text-xs text-white font-medium bg-black/60 px-3 py-1.5 rounded-xl backdrop-blur">Click to Expand</span>
+                        <div class="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center pointer-events-none">
+                            <span class="text-xs text-white font-medium bg-slate-900/75 px-3 py-1.5 rounded-xl backdrop-blur">Click to Expand</span>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Action Toolbar -->
-            <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-800">
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
                 <div class="flex items-center gap-2">
-                    <a id="downloadResultBtn" href="#" download="AuraStudio_AI_Portrait.png" class="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-lg shadow-purple-600/20 transition flex items-center gap-1.5">
+                    <a id="downloadResultBtn" href="#" download="AuraStudio_AI_Portrait.png" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
                         <span>Download HD</span>
                     </a>
 
-                    <a id="shareTwitterBtn" href="#" target="_blank" class="px-4 py-2.5 rounded-xl glass-card hover:bg-gray-800 text-gray-300 hover:text-white text-xs font-semibold transition flex items-center gap-1.5">
-                        <i data-lucide="twitter" class="w-3.5 h-3.5 text-cyan-400"></i>
+                    <a id="shareTwitterBtn" href="#" target="_blank" class="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+                        <i data-lucide="twitter" class="w-3.5 h-3.5 text-cyan-600"></i>
                         <span>Share on X</span>
                     </a>
                 </div>
 
-                <button onclick="resetForNewPrompt()" class="px-4 py-2.5 rounded-xl glass-card hover:bg-gray-800 text-gray-300 hover:text-white text-xs font-semibold transition flex items-center gap-1.5">
-                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-purple-400"></i>
+                <button onclick="resetForNewPrompt()" class="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-indigo-600"></i>
                     <span>Try Another Style</span>
                 </button>
             </div>
@@ -422,106 +434,106 @@
     </main>
 
     <!-- Footer -->
-    <footer class="w-full border-t border-gray-900 py-6 text-center text-xs text-gray-500">
+    <footer class="w-full border-t border-slate-200 py-6 text-center text-xs text-slate-500 bg-white/60">
         <div class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div>
-                © 2026 <span class="text-gray-400">AuraStudio.AI</span> • Qwen 2.5 DiT Engine
+                © 2026 <span class="text-slate-700 font-semibold">AuraStudio.AI</span> • Qwen 2.5 DiT Engine
             </div>
-            <div class="flex items-center gap-4 text-gray-400">
-                <button onclick="openCatalogModal()" class="hover:text-purple-400 transition">Style Catalog</button>
-                <button onclick="openFeedbackModal()" class="hover:text-purple-400 transition">Leave Review</button>
-                <a href="/dashboard" id="telemetryFooterBtn" target="_blank" class="hidden hover:text-cyan-400 transition">Telemetry</a>
+            <div class="flex items-center gap-4 text-slate-600">
+                <button onclick="openCatalogModal()" class="hover:text-indigo-600 transition">Style Catalog</button>
+                <button onclick="openFeedbackModal()" class="hover:text-indigo-600 transition">Leave Review</button>
+                <a href="/dashboard" id="telemetryFooterBtn" target="_blank" class="hidden hover:text-cyan-600 transition">Telemetry</a>
             </div>
         </div>
     </footer>
 
     <!-- Full Image Modal -->
-    <div id="fullImageModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4" onclick="closeFullImageModal()">
+    <div id="fullImageModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md hidden items-center justify-center p-4" onclick="closeFullImageModal()">
         <div class="max-w-4xl w-full text-center space-y-3 relative" onclick="event.stopPropagation()">
-            <button onclick="closeFullImageModal()" class="absolute -top-10 right-0 text-gray-400 hover:text-white text-sm flex items-center gap-1">
+            <button onclick="closeFullImageModal()" class="absolute -top-10 right-0 text-slate-300 hover:text-white text-sm flex items-center gap-1 font-medium">
                 <i data-lucide="x" class="w-5 h-5"></i> Close
             </button>
-            <img id="fullModalImg" src="" class="max-h-[85vh] mx-auto rounded-3xl shadow-2xl border border-gray-800">
+            <img id="fullModalImg" src="" class="max-h-[85vh] mx-auto rounded-3xl shadow-2xl border border-slate-700">
         </div>
     </div>
 
     <!-- Style Catalog Modal (Interactive Visual Library) -->
-    <div id="catalogModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
-        <div class="glass-card max-w-3xl w-full rounded-3xl p-6 sm:p-8 space-y-6 max-h-[85vh] overflow-y-auto border border-purple-500/30">
+    <div id="catalogModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white max-w-3xl w-full rounded-3xl p-6 sm:p-8 space-y-6 max-h-[85vh] overflow-y-auto border border-slate-200 shadow-2xl text-slate-900">
             <div class="flex items-center justify-between">
                 <div>
-                    <h3 class="text-xl font-bold tracking-tight text-white">Curated Style Catalog</h3>
-                    <p class="text-xs text-gray-400">Select any style preset to instantly load it into the studio.</p>
+                    <h3 class="text-xl font-bold tracking-tight text-slate-900">Curated Style Catalog</h3>
+                    <p class="text-xs text-slate-500">Select any style preset to instantly load it into the studio.</p>
                 </div>
-                <button onclick="closeCatalogModal()" class="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800">
+                <button onclick="closeCatalogModal()" class="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <!-- Preset 0: Ultra-HD Skin Pro (Featured) -->
-                <div onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus'); closeCatalogModal();" class="glass-card rounded-2xl p-3 border-amber-500/40 hover:border-amber-400 transition cursor-pointer group relative overflow-hidden">
-                    <div class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold z-10">💎 20 Stars</div>
-                    <div class="h-44 rounded-xl bg-gray-900 overflow-hidden mb-3">
+                <div onclick="applySlashPreset('ultrahd_skin', '💎 /ultrahd', 'extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm f/1.4 lens, razor-sharp focus'); closeCatalogModal();" class="bg-amber-50/30 rounded-2xl p-3 border border-amber-300 hover:border-amber-400 hover:shadow-md transition cursor-pointer group relative overflow-hidden">
+                    <div class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold z-10">💎 20 Stars</div>
+                    <div class="h-44 rounded-xl bg-slate-100 overflow-hidden mb-3 border border-slate-200">
                         <img src="/assets/presets/placeholder.webp" class="w-full h-full object-cover group-hover:scale-105 transition">
                     </div>
-                    <h4 class="font-bold text-sm text-white group-hover:text-amber-300">💎 Ultra-HD Cinema Skin (4K)</h4>
-                    <p class="text-[11px] text-gray-400">Micro-pores, peach fuzz vellus hair & 8K subsurface scattering.</p>
+                    <h4 class="font-bold text-sm text-slate-900 group-hover:text-amber-800">💎 Ultra-HD Cinema Skin (4K)</h4>
+                    <p class="text-[11px] text-slate-500">Micro-pores, peach fuzz vellus hair & 8K subsurface scattering.</p>
                 </div>
 
                 <!-- Preset 1 -->
-                <div onclick="applySlashPreset('headshot_linkedin', '💼 /linkedin', 'change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting'); closeCatalogModal();" class="glass-card rounded-2xl p-3 hover:border-purple-500 transition cursor-pointer group">
-                    <div class="h-44 rounded-xl bg-gray-900 overflow-hidden mb-3">
+                <div onclick="applySlashPreset('headshot_linkedin', '💼 /linkedin', 'change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting'); closeCatalogModal();" class="bg-white rounded-2xl p-3 border border-slate-200 hover:border-indigo-400 hover:shadow-md transition cursor-pointer group">
+                    <div class="h-44 rounded-xl bg-slate-100 overflow-hidden mb-3 border border-slate-200">
                         <img src="/assets/presets/linkedin.webp" onerror="this.src='/assets/presets/placeholder.webp'" class="w-full h-full object-cover object-top group-hover:scale-105 transition">
                     </div>
-                    <h4 class="font-bold text-sm text-white group-hover:text-purple-300">💼 LinkedIn Pro Headshot</h4>
-                    <p class="text-[11px] text-gray-400">Dark navy tailored business suit & studio lighting.</p>
+                    <h4 class="font-bold text-sm text-slate-900 group-hover:text-indigo-600">💼 LinkedIn Pro Headshot</h4>
+                    <p class="text-[11px] text-slate-500">Dark navy tailored business suit & studio lighting.</p>
                 </div>
 
                 <!-- Preset 2 -->
-                <div onclick="applySlashPreset('fashion_old_money', '🍸 /oldmoney', 'change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers in minimal luxury setting'); closeCatalogModal();" class="glass-card rounded-2xl p-3 hover:border-purple-500 transition cursor-pointer group">
-                    <div class="h-44 rounded-xl bg-gray-900 overflow-hidden mb-3">
+                <div onclick="applySlashPreset('fashion_old_money', '🍸 /oldmoney', 'change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers in minimal luxury setting'); closeCatalogModal();" class="bg-white rounded-2xl p-3 border border-slate-200 hover:border-indigo-400 hover:shadow-md transition cursor-pointer group">
+                    <div class="h-44 rounded-xl bg-slate-100 overflow-hidden mb-3 border border-slate-200">
                         <img src="/assets/presets/old_money.webp" onerror="this.src='/assets/presets/placeholder.webp'" class="w-full h-full object-cover group-hover:scale-105 transition">
                     </div>
-                    <h4 class="font-bold text-sm text-white group-hover:text-purple-300">🍸 Old Money Luxury</h4>
-                    <p class="text-[11px] text-gray-400">Beige cashmere sweater & quiet luxury aesthetic.</p>
+                    <h4 class="font-bold text-sm text-slate-900 group-hover:text-indigo-600">🍸 Old Money Luxury</h4>
+                    <p class="text-[11px] text-slate-500">Beige cashmere sweater & quiet luxury aesthetic.</p>
                 </div>
 
                 <!-- Preset 3 -->
-                <div onclick="applySlashPreset('hair_blonde', '👱‍♀️ /blonde', 'change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights'); closeCatalogModal();" class="glass-card rounded-2xl p-3 hover:border-purple-500 transition cursor-pointer group">
-                    <div class="h-44 rounded-xl bg-gray-900 overflow-hidden mb-3">
+                <div onclick="applySlashPreset('hair_blonde', '👱‍♀️ /blonde', 'change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights'); closeCatalogModal();" class="bg-white rounded-2xl p-3 border border-slate-200 hover:border-indigo-400 hover:shadow-md transition cursor-pointer group">
+                    <div class="h-44 rounded-xl bg-slate-100 overflow-hidden mb-3 border border-slate-200">
                         <img src="/assets/presets/blonde.webp" onerror="this.src='/assets/presets/placeholder.webp'" class="w-full h-full object-cover group-hover:scale-105 transition">
                     </div>
-                    <h4 class="font-bold text-sm text-white group-hover:text-purple-300">👱‍♀️ Blonde Restyle</h4>
-                    <p class="text-[11px] text-gray-400">Natural soft blonde with sun-kissed delicate strands.</p>
+                    <h4 class="font-bold text-sm text-slate-900 group-hover:text-indigo-600">👱‍♀️ Blonde Restyle</h4>
+                    <p class="text-[11px] text-slate-500">Natural soft blonde with sun-kissed delicate strands.</p>
                 </div>
 
                 <!-- Preset 4 -->
-                <div onclick="applySlashPreset('travel_bali', '🌴 /bali', 'change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting'); closeCatalogModal();" class="glass-card rounded-2xl p-3 hover:border-purple-500 transition cursor-pointer group">
-                    <div class="h-44 rounded-xl bg-gray-900 overflow-hidden mb-3">
+                <div onclick="applySlashPreset('travel_bali', '🌴 /bali', 'change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting'); closeCatalogModal();" class="bg-white rounded-2xl p-3 border border-slate-200 hover:border-indigo-400 hover:shadow-md transition cursor-pointer group">
+                    <div class="h-44 rounded-xl bg-slate-100 overflow-hidden mb-3 border border-slate-200">
                         <img src="/assets/presets/bali.webp" onerror="this.src='/assets/presets/placeholder.webp'" class="w-full h-full object-cover group-hover:scale-105 transition">
                     </div>
-                    <h4 class="font-bold text-sm text-white group-hover:text-purple-300">🌴 Bali Sunset Travel</h4>
-                    <p class="text-[11px] text-gray-400">Tropical infinity pool with warm sunset glow.</p>
+                    <h4 class="font-bold text-sm text-slate-900 group-hover:text-indigo-600">🌴 Bali Sunset Travel</h4>
+                    <p class="text-[11px] text-slate-500">Tropical infinity pool with warm sunset glow.</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Paywall & Upgrade Modal (Shown when credits exhausted or clicked Upgrade) -->
-    <div id="paywallModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
-        <div class="glass-card max-w-lg w-full rounded-3xl p-6 sm:p-8 space-y-6 border border-purple-500/40 shadow-2xl">
+    <!-- Paywall & Upgrade Modal -->
+    <div id="paywallModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white max-w-lg w-full rounded-3xl p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl text-slate-900">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white shadow-lg">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
                         <i data-lucide="zap" class="w-5 h-5 fill-current"></i>
                     </div>
                     <div>
-                        <h3 class="text-xl font-bold tracking-tight text-white">Upgrade AuraStudio Pro</h3>
-                        <p class="text-xs text-gray-400">Instant AI generation on Nvidia A10G Cloud GPU</p>
+                        <h3 class="text-xl font-bold tracking-tight text-slate-900">Upgrade AuraStudio Pro</h3>
+                        <p class="text-xs text-slate-500">Instant AI generation on Nvidia A10G Cloud GPU</p>
                     </div>
                 </div>
-                <button onclick="closePaywall()" class="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800">
+                <button onclick="closePaywall()" class="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
@@ -529,59 +541,59 @@
             <!-- Pricing Tier Options -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <!-- Starter Pro -->
-                <div class="glass-card rounded-2xl p-5 space-y-3 border border-amber-500/30 text-left flex flex-col justify-between">
+                <div class="bg-amber-50/50 rounded-2xl p-5 space-y-3 border border-amber-200 text-left flex flex-col justify-between">
                     <div class="space-y-1">
-                        <span class="text-[10px] font-bold uppercase text-amber-400">Starter Package</span>
-                        <div class="text-2xl font-extrabold text-white flex items-center gap-1.5">
+                        <span class="text-[10px] font-bold uppercase text-amber-700 tracking-wider">Starter Package</span>
+                        <div class="text-2xl font-extrabold text-slate-900 flex items-center gap-1.5">
                             <span>⭐ 250</span>
-                            <span class="text-xs font-normal text-gray-400">Stars</span>
+                            <span class="text-xs font-normal text-slate-500">Stars</span>
                         </div>
-                        <p class="text-xs text-gray-400">50 HD Studio Generations / Videos</p>
+                        <p class="text-xs text-slate-500">50 HD Studio Generations / Videos</p>
                     </div>
                     <div class="space-y-2 pt-2">
-                        <button onclick="handleStarsPay('starter')" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-1.5">
+                        <button onclick="handleStarsPay('starter')" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition flex items-center justify-center gap-1.5">
                             <span>⭐ Оплатити 250 Telegram Stars</span>
                         </button>
                     </div>
                 </div>
 
                 <!-- Unlimited Master -->
-                <div class="glass-card rounded-2xl p-5 space-y-3 border border-purple-500/50 text-left relative flex flex-col justify-between">
-                    <span class="absolute -top-2.5 right-4 px-2 py-0.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[9px] font-extrabold rounded-full uppercase tracking-wider shadow">BEST VALUE</span>
+                <div class="bg-indigo-50/40 rounded-2xl p-5 space-y-3 border border-indigo-200 text-left relative flex flex-col justify-between">
+                    <span class="absolute -top-2.5 right-4 px-2 py-0.5 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white text-[9px] font-extrabold rounded-full uppercase tracking-wider shadow">BEST VALUE</span>
                     <div class="space-y-1">
-                        <span class="text-[10px] font-bold uppercase text-pink-400">Unlimited Pro</span>
-                        <div class="text-2xl font-extrabold text-white flex items-center gap-1.5">
+                        <span class="text-[10px] font-bold uppercase text-indigo-700 tracking-wider">Unlimited Pro</span>
+                        <div class="text-2xl font-extrabold text-slate-900 flex items-center gap-1.5">
                             <span>⭐ 500</span>
-                            <span class="text-xs font-normal text-gray-400">Stars</span>
+                            <span class="text-xs font-normal text-slate-500">Stars</span>
                         </div>
-                        <p class="text-xs text-gray-400">Безлімітні генерації фото та відео на місяць</p>
+                        <p class="text-xs text-slate-500">Безлімітні генерації фото та відео на місяць</p>
                     </div>
                     <div class="space-y-2 pt-2">
-                        <button onclick="handleStarsPay('unlimited')" class="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white font-bold text-xs rounded-xl shadow-lg shadow-pink-500/20 transition flex items-center justify-center gap-1.5">
+                        <button onclick="handleStarsPay('unlimited')" class="w-full py-2.5 bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-1.5">
                             <span>⭐️ Оплатити 500 Telegram Stars</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            <p class="text-[11px] text-gray-400 text-center">Оплата в 1 клік через бота <b>@thing_intellect_bot</b>. Баланс миттєво з'явиться на сайті.</p>
+            <p class="text-[11px] text-slate-500 text-center">Оплата в 1 клік через бота <b>@thing_intellect_bot</b>. Баланс миттєво з'явиться на сайті.</p>
         </div>
     </div>
 
     <!-- Auth Modal (1-Click Google OAuth & Telegram Login) -->
-    <div id="authModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
-        <div class="glass-card max-w-sm w-full rounded-3xl p-6 sm:p-8 space-y-6 text-center border border-purple-500/40 shadow-2xl relative">
-            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+    <div id="authModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white max-w-sm w-full rounded-3xl p-6 sm:p-8 space-y-6 text-center border border-slate-200 shadow-2xl relative text-slate-900">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
 
-            <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 mx-auto flex items-center justify-center text-white shadow-lg">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 mx-auto flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
                 <i data-lucide="user" class="w-7 h-7"></i>
             </div>
 
             <div class="space-y-1">
-                <h3 class="text-xl font-bold tracking-tight text-white">Sign In to AuraStudio</h3>
-                <p class="text-xs text-gray-400">Unlock your 5 free daily transformations.</p>
+                <h3 class="text-xl font-bold tracking-tight text-slate-900">Sign In to AuraStudio</h3>
+                <p class="text-xs text-slate-500">Unlock your 5 free daily transformations.</p>
             </div>
 
             <div class="space-y-3 pt-2">
@@ -592,19 +604,19 @@
                          data-callback="handleGoogleCredentialResponse"
                          data-auto_prompt="false">
                     </div>
-                    <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="filled_black" data-text="signin_with" data-size="large" data-width="280"></div>
+                    <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="signin_with" data-size="large" data-width="280"></div>
                 </div>
 
                 <!-- Telegram Button -->
-                <button onclick="startTelegramLogin()" class="w-full py-2.5 px-4 bg-[#24A1DE] hover:bg-[#2092ca] text-white font-semibold text-xs rounded-xl shadow transition flex items-center justify-center gap-2">
+                <button onclick="startTelegramLogin()" class="w-full py-2.5 px-4 bg-[#24A1DE] hover:bg-[#2092ca] text-white font-semibold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-2">
                     <i data-lucide="send" class="w-4 h-4"></i>
                     <span>Sign In with Telegram</span>
                 </button>
 
                 <!-- Telegram QR fallback -->
-                <div id="telegramQrBox" class="hidden p-3 rounded-2xl bg-gray-900 border border-gray-800 space-y-2">
-                    <img id="telegramQrImg" src="" class="w-28 h-28 mx-auto rounded-xl bg-white p-1">
-                    <a id="telegramDirectBtn" href="#" target="_blank" class="block text-xs text-purple-400 hover:underline">
+                <div id="telegramQrBox" class="hidden p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                    <img id="telegramQrImg" src="" class="w-28 h-28 mx-auto rounded-xl bg-white p-1 shadow-sm border border-slate-200">
+                    <a id="telegramDirectBtn" href="#" target="_blank" class="block text-xs text-indigo-600 hover:underline font-medium">
                         Open Telegram Bot →
                     </a>
                 </div>
@@ -613,43 +625,43 @@
     </div>
 
     <!-- User Profile Modal -->
-    <div id="userModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
-        <div class="glass-card max-w-md w-full rounded-3xl p-6 sm:p-8 space-y-6 border border-purple-500/30">
+    <div id="userModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white max-w-md w-full rounded-3xl p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl text-slate-900">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold text-white">Account & History</h3>
-                <button onclick="closeUserModal()" class="p-1.5 text-gray-400 hover:text-white rounded-lg">
+                <h3 class="text-lg font-bold text-slate-900">Account & History</h3>
+                <button onclick="closeUserModal()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
-            <div class="flex items-center gap-3 p-3 rounded-2xl bg-gray-900/60 border border-gray-800">
-                <div class="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold" id="userModalAvatar">U</div>
+            <div class="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                <div class="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold" id="userModalAvatar">U</div>
                 <div class="overflow-hidden text-left">
-                    <div class="font-bold text-sm text-white truncate" id="userModalName">User</div>
-                    <div class="text-xs text-gray-400 truncate" id="userModalPlan">Free Tier (5 Free Daily)</div>
+                    <div class="font-bold text-sm text-slate-900 truncate" id="userModalName">User</div>
+                    <div class="text-xs text-slate-500 truncate" id="userModalPlan">Free Tier (5 Free Daily)</div>
                 </div>
             </div>
 
             <!-- History Grid -->
             <div class="space-y-2 text-left">
-                <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Recent Generations</span>
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Recent Generations</span>
                 <div id="userHistoryGrid" class="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
-                    <div class="col-span-3 text-center py-6 text-xs text-gray-500">No creations yet.</div>
+                    <div class="col-span-3 text-center py-6 text-xs text-slate-400">No creations yet.</div>
                 </div>
             </div>
 
-            <button onclick="handleLogout()" class="w-full py-2.5 text-xs text-red-400 hover:text-red-300 font-semibold glass-card hover:bg-red-500/10 rounded-xl transition">
+            <button onclick="handleLogout()" class="w-full py-2.5 text-xs text-red-600 hover:text-red-700 font-semibold bg-red-50 hover:bg-red-100/80 border border-red-200 rounded-xl transition">
                 Sign Out
             </button>
         </div>
     </div>
 
     <!-- Feedback Modal -->
-    <div id="feedbackModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
-        <div class="glass-card max-w-md w-full rounded-3xl p-6 sm:p-8 space-y-5 border border-purple-500/30">
+    <div id="feedbackModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white max-w-md w-full rounded-3xl p-6 sm:p-8 space-y-5 border border-slate-200 shadow-2xl text-slate-900">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold text-white">Leave Feedback</h3>
-                <button onclick="closeFeedbackModal()" class="p-1.5 text-gray-400 hover:text-white rounded-lg">
+                <h3 class="text-lg font-bold text-slate-900">Leave Feedback</h3>
+                <button onclick="closeFeedbackModal()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
@@ -663,9 +675,9 @@
                 <button onclick="setRating(5)" class="star-btn text-2xl text-yellow-400 transition">★</button>
             </div>
 
-            <textarea id="feedbackComment" rows="3" placeholder="How was your AI transformation experience?" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"></textarea>
+            <textarea id="feedbackComment" rows="3" placeholder="How was your AI transformation experience?" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 resize-none"></textarea>
 
-            <button onclick="submitFeedback()" id="submitFeedbackBtn" class="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl shadow transition">
+            <button onclick="submitFeedback()" id="submitFeedbackBtn" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition">
                 Submit Review
             </button>
         </div>
@@ -739,7 +751,7 @@
                             });
                             window.google.accounts.id.renderButton(
                                 document.getElementById('googleAuthContainer'),
-                                { theme: 'filled_black', size: 'large', width: 280 }
+                                { theme: 'outline', size: 'large', width: 280 }
                             );
                         }
                     }
@@ -992,13 +1004,13 @@
 
             ['dragenter', 'dragover'].forEach(evt => {
                 dropZone.addEventListener(evt, () => {
-                    dropZone.classList.add('border-purple-500', 'ring-2', 'ring-purple-500/30');
+                    dropZone.classList.add('border-indigo-500', 'ring-2', 'ring-indigo-500/20');
                 }, false);
             });
 
             ['dragleave', 'drop'].forEach(evt => {
                 dropZone.addEventListener(evt, () => {
-                    dropZone.classList.remove('border-purple-500', 'ring-2', 'ring-purple-500/30');
+                    dropZone.classList.remove('border-indigo-500', 'ring-2', 'ring-indigo-500/20');
                 }, false);
             });
 
