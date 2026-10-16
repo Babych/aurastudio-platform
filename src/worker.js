@@ -67,6 +67,16 @@ const GLOBAL_PRESETS = {
   retro90s: "transform into unhinged 90s meme character, wild spiky mohawk hair, retro vintage clothing, funny candid expression"
 };
 
+// Protected Standards (Rule 6: Mandatory Golden Identity Retention Formula)
+const IDENTITY_ANCHOR_SUFFIX = "keep exact same person, 100% exact original face, sharp focused eyes and gaze, exact original lips and expression, preserve original lighting, exact original skin color and tone, seamless photorealistic integration, no text";
+
+function anchorPromptForPhoto(promptText) {
+  if (!promptText) return IDENTITY_ANCHOR_SUFFIX;
+  const clean = promptText.trim();
+  if (clean.toLowerCase().includes("keep exact same person")) return clean;
+  return `${clean}, ${IDENTITY_ANCHOR_SUFFIX}`;
+}
+
 // Helper: Call Modal with automatic account failover
 async function callModalWithFallback(endpoints, payload) {
   let lastErr = "";
@@ -1098,11 +1108,11 @@ export default {
 
           const finalPrompt = isTextToImage
             ? `candid 8k dslr photograph, ultra-detailed, cinematic soft lighting, realistic depth of field, photorealistic, ${prompt}`
-            : prompt;
+            : anchorPromptForPhoto(prompt);
 
           const cleanNeg = isTextToImage
             ? "blurry, low quality, distorted, bad anatomy, artifacts, malformed, deformed, text, watermark"
-            : "text, watermark, changed face, altered eyes, blurry face, different identity, fake skin, plastic wax, doll, airbrushed skin, deformed, blurry";
+            : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity";
 
           const payload = {
             image_base64: effectiveInputBase64,
@@ -1500,7 +1510,7 @@ export default {
         }
 
         const presetKey = url.searchParams.get("preset") || "linkedin";
-        const prompt = GLOBAL_PRESETS[presetKey] || "change clothes to sharp tailored navy suit, keep exact same person, 100% exact original face, natural skin texture";
+        const prompt = anchorPromptForPhoto(GLOBAL_PRESETS[presetKey] || "change clothes to sharp tailored navy suit");
         const taskId = `smoke_test_${Date.now()}`;
         const startTime = Date.now();
 
@@ -1671,13 +1681,13 @@ export default {
           if (!resPhoto || !resPhoto.base64) {
             return jsonResponse({ status: "error", message: "No photo found for user", testUserId }, 400);
           }
-          const prompt = GLOBAL_PRESETS[presetKey] || "enhance photo to studio magazine portrait";
+          const prompt = anchorPromptForPhoto(GLOBAL_PRESETS[presetKey] || "enhance photo to studio magazine portrait");
           const startTime = Date.now();
           const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
             image_base64: resPhoto.base64,
             prompt,
-            negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-            steps: 16,
+            negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity",
+            steps: 22,
             cfg: 1.95,
             seed: 888424
           });
@@ -1814,12 +1824,12 @@ export default {
           // Handle Preset Generation from message photo or session
           if (data.startsWith("preset_")) {
             const presetKey = data.replace("preset_", "");
-            const prompt = GLOBAL_PRESETS[presetKey] || "enhance photo to studio magazine portrait";
+            const prompt = anchorPromptForPhoto(GLOBAL_PRESETS[presetKey] || "enhance photo to studio magazine portrait");
             const isUltraHd = presetKey === "ultrahd_skin";
-            const steps = isUltraHd ? 16 : 12;
+            const steps = isUltraHd ? 22 : 22;
             const negPrompt = isUltraHd
-              ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes"
-              : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes";
+              ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes, changed face, altered eyes, different identity"
+              : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity";
             
             const explicitFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
                                    cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id;
@@ -2279,11 +2289,11 @@ export default {
               const startTime = Date.now();
               try {
                 const finalPrompt = hasPhoto
-                  ? text
+                  ? anchorPromptForPhoto(text)
                   : `candid 8k dslr photograph, ultra-detailed, cinematic soft lighting, realistic depth of field, photorealistic, ${text}`;
 
                 const cleanNeg = hasPhoto
-                  ? "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes"
+                  ? "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity"
                   : "blurry, low quality, distorted, bad anatomy, artifacts, malformed, extra limbs, text, watermark";
 
                 // Call Modal GPU with multi-account failover
@@ -2291,7 +2301,7 @@ export default {
                   image_base64: effectivePhotoBase64,
                   prompt: finalPrompt,
                   negative_prompt: cleanNeg,
-                  steps: 12,
+                  steps: 22,
                   cfg: 1.95,
                   seed: 888424
                 });
