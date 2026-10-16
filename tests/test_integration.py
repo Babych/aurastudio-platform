@@ -21,14 +21,15 @@ PROD_API_URL = os.environ.get("AURASTUDIO_API_URL", "https://aurastudio-ai.memor
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "aurastudio-admin-2026")
 MODAL_GPU_URL = os.environ.get(
     "MODAL_GPU_URL",
-    "https://dmytrobbch--qwen-image-edit-service-qweneditor-api-edit.modal.run"
+    "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run"
 )
 
 def get_test_portrait_base64() -> str:
     """Load a valid test image from disk or generate a synthetic one."""
     candidate_paths = [
+        os.path.join(os.path.dirname(__file__), "..", "web", "assets", "presets", "linkedin.jpg"),
         os.path.join(os.path.dirname(__file__), "..", "web", "assets", "presets", "linkedin.webp"),
-        "web/assets/presets/linkedin.webp"
+        "web/assets/presets/linkedin.jpg"
     ]
     for path in candidate_paths:
         if os.path.exists(path):
@@ -101,7 +102,7 @@ class TestAuraStudioPlatformIntegration(unittest.TestCase):
             headers={"Content-Type": "application/json"}
         )
         
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=300) as resp:
             self.assertEqual(resp.status, 200)
             data = json.loads(resp.read().decode("utf-8"))
             elapsed = time.time() - t0
@@ -117,7 +118,7 @@ class TestAuraStudioPlatformIntegration(unittest.TestCase):
 
         t0 = time.time()
         req = urllib.request.Request(url, headers={"User-Agent": "AuraStudioIntegrationTest/1.0"})
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=300) as resp:
             self.assertEqual(resp.status, 200)
             data = json.loads(resp.read().decode("utf-8"))
             elapsed = time.time() - t0
