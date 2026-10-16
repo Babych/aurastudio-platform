@@ -1310,6 +1310,26 @@
             }
         }
 
+        function setGenerateBtnLoading(isLoading) {
+            const btn = document.getElementById('generateBtn');
+            if (!btn) return;
+            btn.disabled = isLoading;
+            if (isLoading) {
+                btn.innerHTML = `
+                    <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>${currentLang === 'uk' ? 'Генеруємо...' : 'Generating...'}</span>
+                `;
+                btn.classList.add('opacity-75', 'cursor-not-allowed');
+            } else {
+                btn.innerHTML = `
+                    <span data-i18n="btn_generate">${currentLang === 'uk' ? 'Згенерувати' : 'Generate'}</span>
+                    <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                `;
+                btn.classList.remove('opacity-75', 'cursor-not-allowed');
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+
         // Trigger AI Generation (Supports both Image-to-Image and Text-to-Image with Qwen 2.1 DiT)
         async function triggerGeneration() {
             const promptInput = document.getElementById('mainPromptInput');
@@ -1319,16 +1339,35 @@
                 return;
             }
 
+            // 1. Immediately dismiss mobile keyboard so the viewport unfreezes and can scroll
+            if (promptInput) {
+                promptInput.blur();
+            }
+
             const hasPhoto = !!attachedFileBase64;
             const inputPhotoBase64 = attachedFileBase64;
 
-            // 1. Immediately clear composer input so user sees message is dispatched
+            // 2. Synchronously create active task (0ms delay, no blocking network calls!)
+            const taskId = `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
+            const activeTask = {
+                taskId,
+                prompt,
+                presetId: selectedPresetId || (hasPhoto ? 'custom' : 'text_to_image'),
+                hasPhoto,
+                inputImage: inputPhotoBase64 || null,
+                startedAt: Date.now(),
+                etaSec: 160
+            };
+            localStorage.setItem('aura_active_task', JSON.stringify(activeTask));
+
+            // 3. Immediately render user's sent message bubble & live AI progress card in stream
+            renderPendingStreamCard(activeTask);
+
+            // 4. Now safely clear composer input and image preview
             if (promptInput) {
                 promptInput.value = '';
                 promptInput.style.height = 'auto';
             }
-
-            // Detach image from composer UI
             attachedFileBase64 = null;
             const attachedBox = document.getElementById('attachedImagePreviewBox');
             if (attachedBox) {
@@ -1338,46 +1377,33 @@
             const fileInput = document.getElementById('mainFileInput');
             if (fileInput) fileInput.value = '';
 
-            // Fetch live queue & warm status from server for honest ETA & queue position
-            let queuePos = 1;
-            let etaSec = 22;
-            let isWarm = true;
-            try {
-                const qRes = await fetch('/api/queue-status');
-                if (qRes.ok) {
-                    const qData = await qRes.json();
-                    if (qData.queue_position) queuePos = qData.queue_position;
-                    if (qData.estimated_seconds) etaSec = qData.estimated_seconds;
-                    if (typeof qData.is_warm === 'boolean') isWarm = qData.is_warm;
-                }
-            } catch(e) {}
+            // 5. Update generate button with active spinner
+            setGenerateBtnLoading(true);
 
-            const taskId = `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
-            const activeTask = {
-                taskId,
-                prompt,
-                presetId: selectedPresetId || (hasPhoto ? 'custom' : 'text_to_image'),
-                hasPhoto,
-                inputImage: inputPhotoBase64 || null,
-                startedAt: Date.now(),
-                etaSec
-            };
-            localStorage.setItem('aura_active_task', JSON.stringify(activeTask));
-            renderPendingStreamCard(activeTask);
-            pollActiveTask(activeTask);
-
-            // 2. Smoothly scroll into view so user sees sent message & live response immediately
-            const streamEl = document.getElementById('studioChatStream');
-            if (streamEl) {
-                streamEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-
-            document.getElementById('resultCanvasBox').classList.add('hidden');
-            // Consolidate: Hide top redundant box, in-chat card handles full progress!
+            // 6. Hide previous results canvas
+            const resCanvas = document.getElementById('resultCanvasBox');
+            if (resCanvas) resCanvas.classList.add('hidden');
             const topLoadingBox = document.getElementById('generationLoadingBox');
             if (topLoadingBox) topLoadingBox.classList.add('hidden');
-            document.getElementById('generateBtn').disabled = true;
 
+            // 7. Smoothly scroll directly to the pending stream card after mobile keyboard dismisses
+            setTimeout(() => {
+                const pendingBox = document.getElementById('streamPendingBox');
+                if (pendingBox) {
+                    pendingBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 80);
+
+            // 8. Start polling loop immediately
+            pollActiveTask(activeTask);
+
+            // 9. Fetch live queue & warm status in background to update ETA badge dynamically
+            fetch('/api/queue-status').then(r => r.json()).then(qData => {
+                if (qData.estimated_seconds) activeTask.etaSec = qData.estimated_seconds;
+                if (typeof qData.is_warm === 'boolean') activeTask.isWarm = qData.is_warm;
+            }).catch(() => {});
+
+            // 10. Dispatch task to Cloudflare Worker & GPU Cluster
             try {
                 const effectiveUserId = (currentUser && currentUser.id) ? currentUser.id : getGuestUserId();
                 const res = await fetch('/api/generate', {
@@ -1405,25 +1431,27 @@
                     clearPendingStreamCard();
                     showResult(data, inputPhotoBase64);
                     refreshStreamHistory();
+                    setGenerateBtnLoading(false);
                 } else if (data.status === 'daily_limit_reached') {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Daily free limit reached.');
                     openPaywall();
+                    setGenerateBtnLoading(false);
                 } else if (data.status === 'auth_required') {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Authentication required.');
                     openAuthModal();
+                    setGenerateBtnLoading(false);
                 } else {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Generation failed on GPU cluster.');
+                    setGenerateBtnLoading(false);
                 }
             } catch(e) {
                 console.error('Direct fetch error, background polling will continue if task registered:', e);
-            } finally {
-                document.getElementById('generateBtn').disabled = false;
             }
         }
 
@@ -1715,7 +1743,6 @@
             `;
             pendingBox.classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
-            pendingBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         function renderFailedStreamCard(activeTask, errorMsg) {
@@ -1885,6 +1912,7 @@
                             stopIntelligentLoadingHUD();
                             const loadingBox = document.getElementById('generationLoadingBox');
                             if (loadingBox) loadingBox.classList.add('hidden');
+                            setGenerateBtnLoading(false);
 
                             // Show notification & refresh stream
                             showToastNotification(currentLang === 'uk' ? '✨ Генерацію відновлено! Завершено у фоновому режимі.' : '✨ Generation restored! Completed in background.');
@@ -1906,6 +1934,7 @@
                             stopIntelligentLoadingHUD();
                             const loadingBox = document.getElementById('generationLoadingBox');
                             if (loadingBox) loadingBox.classList.add('hidden');
+                            setGenerateBtnLoading(false);
                             renderFailedStreamCard(activeTask, data.error || 'Generation failed');
                         }
                     }
@@ -1918,6 +1947,7 @@
                     clearInterval(pollingInterval);
                     pollingInterval = null;
                     localStorage.removeItem('aura_active_task');
+                    setGenerateBtnLoading(false);
                     renderFailedStreamCard(activeTask, 'Generation timed out after 5 minutes.');
                 }
             }, 3000);

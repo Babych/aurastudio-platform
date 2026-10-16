@@ -24,7 +24,7 @@ export async function callModalWithFallback(endpoints, payload) {
       errors.push(e.name === "TimeoutError" ? "GPU cold start timed out (>240s)" : e.message);
     }
   }
-  throw new Error(`GPU cluster temporarily unavailable. Please retry in a few moments.`);
+  throw new Error(`GPU cluster temporarily unavailable: ${errors.join(" | ") || "all endpoints unreachable"}`);
 }
 
 export async function uploadToR2(bucket, key, base64Data) {
