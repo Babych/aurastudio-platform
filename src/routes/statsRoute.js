@@ -65,7 +65,7 @@ export async function handleStats(request, env, url) {
         const g = await env.DB.prepare("SELECT COUNT(*) as total_gens, AVG(duration_seconds) as avg_duration FROM generations WHERE status = 'SUCCESS' AND duration_seconds IS NOT NULL AND duration_seconds > 0").first();
         const errCount = await env.DB.prepare("SELECT COUNT(*) as total_errors FROM error_logs WHERE created_at >= datetime('now', '-1 day')").first();
         const t = await env.DB.prepare(`
-          SELECT id, user_id as user, source, preset_id as preset, prompt, input_image_url as input_img, output_image_url as output_img, status, duration_seconds as duration, created_at
+          SELECT id, user_id as user, source, preset_id as preset, prompt, input_image_url as input_img, output_image_url as output_img, status, duration_seconds as duration, error_message, created_at
           FROM generations 
           ORDER BY rowid DESC 
           LIMIT 30

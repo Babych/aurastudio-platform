@@ -1238,6 +1238,21 @@
                         subEl.innerText = currentLang === 'uk' ? 'Декодування нейромережевих тензорів' : 'Decoding neural latent tensors to high-res image';
                     }
                 }
+
+                // Sync with chat stream live card
+                const liveBadge = document.getElementById('liveStatusBadge');
+                const liveSubtext = document.getElementById('liveStatusSubtext');
+                const liveBar = document.getElementById('liveStatusBar');
+                const pendingBadge = document.getElementById('pendingElapsedBadge');
+                const liveDot = document.getElementById('liveStatusDot');
+
+                if (liveBadge && statusEl) liveBadge.innerText = statusEl.innerText.replace(/[🔒✨💎⚡🚀🎨]/g, '').trim();
+                if (liveSubtext && subEl) liveSubtext.innerText = subEl.innerText;
+                if (liveBar) liveBar.style.width = `${Math.round(currentProgress)}%`;
+                if (pendingBadge) pendingBadge.innerText = `${elapsed}s elapsed`;
+                if (liveDot) {
+                    liveDot.className = elapsed < 4 ? "w-2 h-2 rounded-full bg-amber-400 animate-pulse" : "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                }
             }, 1000);
         }
 
@@ -1255,13 +1270,31 @@
                 return;
             }
 
-            const prompt = document.getElementById('mainPromptInput').value.trim();
+            const promptInput = document.getElementById('mainPromptInput');
+            const prompt = (promptInput ? promptInput.value : '').trim();
             if (!prompt) {
                 alert(currentLang === 'uk' ? 'Будь ласка, напишіть опис або виберіть стиль через /.' : 'Please enter a prompt or pick a style using /.');
                 return;
             }
 
             const hasPhoto = !!attachedFileBase64;
+            const inputPhotoBase64 = attachedFileBase64;
+
+            // 1. Immediately clear composer input so user sees message is dispatched
+            if (promptInput) {
+                promptInput.value = '';
+                promptInput.style.height = 'auto';
+            }
+
+            // Detach image from composer UI
+            attachedFileBase64 = null;
+            const attachedBox = document.getElementById('attachedImagePreviewBox');
+            if (attachedBox) {
+                attachedBox.classList.add('hidden');
+                attachedBox.classList.remove('flex');
+            }
+            const fileInput = document.getElementById('mainFileInput');
+            if (fileInput) fileInput.value = '';
 
             // Fetch live queue & warm status from server for honest ETA & queue position
             let queuePos = 1;
@@ -1283,12 +1316,18 @@
                 prompt,
                 presetId: selectedPresetId || (hasPhoto ? 'custom' : 'text_to_image'),
                 hasPhoto,
-                inputImage: attachedFileBase64 || null,
+                inputImage: inputPhotoBase64 || null,
                 startedAt: Date.now(),
                 etaSec
             };
             localStorage.setItem('aura_active_task', JSON.stringify(activeTask));
             renderPendingStreamCard(activeTask);
+
+            // 2. Smoothly scroll into view so user sees sent message & live response immediately
+            const streamEl = document.getElementById('studioChatStream');
+            if (streamEl) {
+                streamEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
 
             document.getElementById('resultCanvasBox').classList.add('hidden');
             document.getElementById('generationLoadingBox').classList.remove('hidden');
@@ -1303,7 +1342,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         task_id: taskId,
-                        image_base64: attachedFileBase64 || null,
+                        image_base64: inputPhotoBase64 || null,
                         prompt: prompt,
                         preset_id: selectedPresetId || (hasPhoto ? 'custom' : 'text_to_image'),
                         user_id: currentUser.id,
@@ -1330,25 +1369,25 @@
                     }, 400);
                 } else if (data.status === 'daily_limit_reached') {
                     localStorage.removeItem('aura_active_task');
-                    clearPendingStreamCard();
+                    renderFailedStreamCard(activeTask, data.message || 'Daily free limit reached.');
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                     openPaywall();
                 } else if (data.status === 'auth_required') {
                     localStorage.removeItem('aura_active_task');
-                    clearPendingStreamCard();
+                    renderFailedStreamCard(activeTask, data.message || 'Authentication required.');
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                     openAuthModal();
                 } else {
                     localStorage.removeItem('aura_active_task');
-                    clearPendingStreamCard();
-                    alert('Error: ' + (data.message || 'Generation failed'));
+                    renderFailedStreamCard(activeTask, data.message || 'Generation failed on GPU cluster.');
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                 }
             } catch(e) {
-                // If connection aborted because window was closed or network hiccup, do not clear localStorage if task was in progress
                 stopIntelligentLoadingHUD();
                 document.getElementById('generationLoadingBox').classList.add('hidden');
                 console.warn('Direct fetch interrupted, task will continue background recovery if active:', e);
+                const badge = document.getElementById('liveStatusBadge');
+                if (badge) badge.innerText = 'Listening for recovery...';
             } finally {
                 document.getElementById('generateBtn').disabled = false;
             }
@@ -1560,29 +1599,105 @@
             if (!pendingBox) return;
 
             const presetName = (activeTask.presetId || 'Transformation').replace(/_/g, ' ').toUpperCase();
+            const userAvatarLetter = currentUser ? ((currentUser.name || currentUser.username || 'U')[0]).toUpperCase() : 'U';
+            const inPhoto = activeTask.inputImage;
+
             pendingBox.innerHTML = `
-                <div class="bg-white rounded-3xl p-5 border-2 border-indigo-200/90 shadow-md space-y-4">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shy-breathe shrink-0">
-                                <i data-lucide="sparkles" class="w-5 h-5"></i>
-                            </div>
-                            <div>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-xs font-bold text-indigo-950">${presetName}</span>
-                                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    <span class="text-[10px] text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">Processing</span>
+                <div class="space-y-4">
+                    <!-- User Sent Message Bubble in Chat Stream -->
+                    <div class="flex items-start justify-end gap-3 max-w-xl ml-auto">
+                        <div class="bg-indigo-600 text-white rounded-3xl rounded-tr-sm px-4 py-3 shadow-md space-y-2 text-right">
+                            ${inPhoto ? `
+                                <div class="rounded-xl overflow-hidden border border-indigo-400/40 w-24 h-24 ml-auto mb-1 bg-indigo-950/30">
+                                    <img src="${inPhoto}" class="w-full h-full object-cover">
                                 </div>
-                                <p class="text-[11px] text-slate-500">Task running on L40S GPU. You can close this tab — result restores automatically!</p>
-                            </div>
+                            ` : ''}
+                            <p class="text-xs sm:text-sm font-medium leading-relaxed">${escapeHtml(activeTask.prompt)}</p>
+                            <span class="text-[10px] text-indigo-200 font-mono block">Just now</span>
                         </div>
-                        <span id="pendingElapsedBadge" class="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full">
-                            ${activeTask.etaSec ? `~${activeTask.etaSec}s` : 'Processing'}
-                        </span>
+                        <div class="w-8 h-8 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 border border-indigo-200 shadow-sm mt-0.5">
+                            ${userAvatarLetter}
+                        </div>
                     </div>
 
-                    <div class="bg-slate-50 rounded-2xl p-3 border border-slate-200 text-xs text-slate-700 font-medium">
-                        "${escapeHtml(activeTask.prompt)}"
+                    <!-- Live AI Assistant Status Card in Chat Stream -->
+                    <div id="liveAiStatusCard" class="bg-white rounded-3xl p-5 border-2 border-indigo-200/90 shadow-md space-y-4 max-w-xl mr-auto">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div id="liveStatusIconBox" class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shy-breathe shrink-0">
+                                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-indigo-950">${presetName}</span>
+                                        <span id="liveStatusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                                        <span id="liveStatusBadge" class="text-[10px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Starting...</span>
+                                    </div>
+                                    <p id="liveStatusSubtext" class="text-[11px] text-slate-500">Connecting to Nvidia L40S GPU cluster...</p>
+                                </div>
+                            </div>
+                            <span id="pendingElapsedBadge" class="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full">
+                                0s elapsed
+                            </span>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div id="liveStatusBar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-500 h-1.5 rounded-full transition-all duration-300" style="width: 15%;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            pendingBox.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function renderFailedStreamCard(activeTask, errorMsg) {
+            const pendingBox = document.getElementById('streamPendingBox');
+            if (!pendingBox) return;
+
+            const presetName = (activeTask.presetId || 'Transformation').replace(/_/g, ' ').toUpperCase();
+            const userAvatarLetter = currentUser ? ((currentUser.name || currentUser.username || 'U')[0]).toUpperCase() : 'U';
+            const inPhoto = activeTask.inputImage;
+
+            pendingBox.innerHTML = `
+                <div class="space-y-4">
+                    <!-- User Sent Message Bubble -->
+                    <div class="flex items-start justify-end gap-3 max-w-xl ml-auto">
+                        <div class="bg-indigo-600 text-white rounded-3xl rounded-tr-sm px-4 py-3 shadow-md space-y-2 text-right">
+                            ${inPhoto ? `
+                                <div class="rounded-xl overflow-hidden border border-indigo-400/40 w-24 h-24 ml-auto mb-1 bg-indigo-950/30">
+                                    <img src="${inPhoto}" class="w-full h-full object-cover">
+                                </div>
+                            ` : ''}
+                            <p class="text-xs sm:text-sm font-medium leading-relaxed">${escapeHtml(activeTask.prompt)}</p>
+                            <span class="text-[10px] text-indigo-200 font-mono block">Failed generation</span>
+                        </div>
+                        <div class="w-8 h-8 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 border border-indigo-200 shadow-sm mt-0.5">
+                            ${userAvatarLetter}
+                        </div>
+                    </div>
+
+                    <!-- Failed AI Assistant Card -->
+                    <div class="bg-red-50/90 rounded-3xl p-5 border-2 border-red-200 shadow-md space-y-3 max-w-xl mr-auto">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-start gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0 mt-0.5">
+                                    <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                                </div>
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-red-950">${presetName}</span>
+                                        <span class="text-[10px] text-red-700 font-bold bg-red-100 border border-red-300 px-2 py-0.5 rounded-full">Failed</span>
+                                    </div>
+                                    <p class="text-xs text-red-700 font-medium leading-relaxed">${escapeHtml(errorMsg || 'GPU request timed out or was interrupted.')}</p>
+                                </div>
+                            </div>
+                            <button onclick="reusePrompt('${escapeJs(activeTask.prompt)}')" class="px-3 py-1.5 rounded-xl bg-white hover:bg-red-100 text-red-700 text-xs font-bold transition flex items-center gap-1.5 shrink-0 border border-red-300 shadow-sm" title="Try Again">
+                                <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                                <span>Try Again</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1630,12 +1745,34 @@
             if (pollingInterval) clearInterval(pollingInterval);
 
             const badge = document.getElementById('pendingElapsedBadge');
+            const liveBadge = document.getElementById('liveStatusBadge');
+            const liveSubtext = document.getElementById('liveStatusSubtext');
+            const liveBar = document.getElementById('liveStatusBar');
+            const liveDot = document.getElementById('liveStatusDot');
             let pollCount = 0;
 
             pollingInterval = setInterval(async () => {
                 pollCount++;
                 const elapsedSec = Math.floor((Date.now() - activeTask.startedAt) / 1000);
                 if (badge) badge.innerText = `${elapsedSec}s elapsed`;
+
+                // Update live stage in chat
+                if (elapsedSec < 4) {
+                    if (liveBadge) liveBadge.innerText = 'Starting...';
+                    if (liveSubtext) liveSubtext.innerText = 'Connecting to Nvidia L40S GPU cluster...';
+                    if (liveBar) liveBar.style.width = '20%';
+                    if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+                } else if (elapsedSec < 22) {
+                    if (liveBadge) liveBadge.innerText = 'Generating...';
+                    if (liveSubtext) liveSubtext.innerText = 'Neural latent diffusion in progress (Qwen 2.5 DiT)...';
+                    if (liveBar) liveBar.style.width = `${Math.min(85, 20 + (elapsedSec - 4) * 3.5)}%`;
+                    if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                } else {
+                    if (liveBadge) liveBadge.innerText = 'Finalizing...';
+                    if (liveSubtext) liveSubtext.innerText = 'Decoding master latents into 8K photo...';
+                    if (liveBar) liveBar.style.width = '94%';
+                    if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                }
 
                 try {
                     const res = await fetch(`/api/task-status/${activeTask.taskId}`);
@@ -1664,8 +1801,7 @@
                             clearInterval(pollingInterval);
                             pollingInterval = null;
                             localStorage.removeItem('aura_active_task');
-                            clearPendingStreamCard();
-                            alert(currentLang === 'uk' ? 'Помилка фонової генерації: ' + (data.error || 'Failed') : 'Background generation error: ' + (data.error || 'Failed'));
+                            renderFailedStreamCard(activeTask, data.error || 'Generation failed');
                         }
                     }
                 } catch(e) {
@@ -1677,7 +1813,7 @@
                     clearInterval(pollingInterval);
                     pollingInterval = null;
                     localStorage.removeItem('aura_active_task');
-                    clearPendingStreamCard();
+                    renderFailedStreamCard(activeTask, 'Generation timed out after 5 minutes.');
                 }
             }, 3000);
         }
