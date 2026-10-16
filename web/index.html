@@ -1563,8 +1563,8 @@
                     <div class="flex items-start justify-end gap-3 max-w-xl ml-auto">
                         <div class="bg-indigo-600 text-white rounded-3xl rounded-tr-sm px-4 py-3 shadow-md space-y-2 text-right">
                             ${inSrc ? `
-                                <div class="rounded-xl overflow-hidden border border-indigo-400/40 w-24 h-24 ml-auto mb-1 bg-indigo-950/30">
-                                    <img src="${inSrc}" class="w-full h-full object-cover">
+                                <div class="rounded-xl overflow-hidden border border-indigo-400/40 w-24 h-24 ml-auto mb-1 bg-indigo-950/60 flex items-center justify-center">
+                                    <img src="${inSrc}" class="w-full h-full object-contain">
                                 </div>
                             ` : ''}
                             <p class="text-xs sm:text-sm font-medium leading-relaxed">${escapeHtml(g.prompt)}</p>
@@ -1599,8 +1599,8 @@
                                 ${inSrc ? `
                                 <div class="space-y-1">
                                     <span class="text-[11px] font-semibold text-slate-400 px-1">Original Input</span>
-                                    <div class="rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 aspect-square flex items-center justify-center">
-                                        <img src="${inSrc}" class="w-full h-full object-cover">
+                                    <div class="rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 min-h-[220px] max-h-[460px] flex items-center justify-center">
+                                        <img src="${inSrc}" class="w-full h-auto max-h-[460px] object-contain">
                                     </div>
                                 </div>
                                 ` : ''}
@@ -1609,8 +1609,8 @@
                                         <span>✨ Master Render</span>
                                         <span class="text-[9px] bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded font-bold">8K HD</span>
                                     </span>
-                                    <div class="rounded-2xl overflow-hidden bg-slate-50 border border-indigo-200 aspect-square flex items-center justify-center group relative cursor-pointer" onclick="openFullImageModalWithSrc('${imgSrc}')">
-                                        <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-102 transition duration-300">
+                                    <div class="rounded-2xl overflow-hidden bg-slate-900 border border-indigo-200 min-h-[220px] max-h-[460px] flex items-center justify-center group relative cursor-pointer" onclick="openFullImageModalWithSrc('${imgSrc}')">
+                                        <img src="${imgSrc}" class="w-full h-auto max-h-[460px] object-contain group-hover:scale-102 transition duration-300">
                                         <div class="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-2xl">
                                             <span class="text-xs text-white font-medium bg-slate-900/75 px-3 py-1.5 rounded-xl backdrop-blur">Click to Expand</span>
                                         </div>
@@ -1657,8 +1657,8 @@
                     <div class="flex items-start justify-end gap-3 max-w-xl ml-auto">
                         <div class="bg-indigo-600 text-white rounded-3xl rounded-tr-sm px-4 py-3 shadow-md space-y-2 text-right">
                             ${inPhoto ? `
-                                <div class="rounded-xl overflow-hidden border border-indigo-400/40 w-24 h-24 ml-auto mb-1 bg-indigo-950/30">
-                                    <img src="${inPhoto}" class="w-full h-full object-cover">
+                                <div class="rounded-xl overflow-hidden border border-indigo-400/40 w-24 h-24 ml-auto mb-1 bg-indigo-950/60 flex items-center justify-center">
+                                    <img src="${inPhoto}" class="w-full h-full object-contain">
                                 </div>
                             ` : ''}
                             <p class="text-xs sm:text-sm font-medium leading-relaxed">${escapeHtml(activeTask.prompt)}</p>

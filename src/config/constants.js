@@ -36,7 +36,7 @@ export const GLOBAL_PRESETS = {
 };
 
 // Protected Standards (Rule 6: Mandatory Golden Identity Retention Formula)
-export const IDENTITY_ANCHOR_SUFFIX = "keep exact same person, 100% exact original face, preserve full original framing, no cropping, no zoom-in, sharp focused eyes and gaze, exact original lips and expression, preserve original lighting, exact original skin color and tone, authentic natural micro skin pores, gentle subsurface scattering, clean jawline and neck, razor-sharp focused eyes with natural catchlights, raw 35mm dslr portrait photography, seamless photorealistic integration, no text";
+export const IDENTITY_ANCHOR_SUFFIX = "keep exact same person, 100% exact original face, exact same camera distance, preserve full original portrait framing from head to torso, no cropping, no zoom-in, no macro zoom, sharp focused eyes and gaze, exact original lips and expression, preserve original lighting, exact original skin color and tone, authentic natural micro skin pores, gentle subsurface scattering, clean jawline and neck, razor-sharp focused eyes with natural catchlights, raw 35mm dslr portrait photography, seamless photorealistic integration, no text";
 
 export function anchorPromptForPhoto(promptText) {
   if (!promptText) return IDENTITY_ANCHOR_SUFFIX;

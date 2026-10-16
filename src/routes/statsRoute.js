@@ -162,7 +162,7 @@ export async function handleSmokeTest(request, env, url) {
       mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
         image_base64: sampleBase64,
         prompt: prompt,
-        negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+        negative_prompt: "cropped, close-up crop, zoomed in, macro zoom, bust crop, plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
         steps: 12,
         cfg: 1.95,
         seed: 888424
