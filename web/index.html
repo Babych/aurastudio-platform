@@ -377,7 +377,7 @@
                 </span>
                 <span id="loadingTimerBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-xs">
                     <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500"></i>
-                    <span id="loadingElapsedSec">0s</span> / <span id="loadingEtaSec">~22s</span>
+                    <span id="loadingElapsedSec">0s</span>
                 </span>
             </div>
 
@@ -1193,14 +1193,8 @@
                         currentProgress = Math.min(96, 88 + (elapsed - 25) * 0.25);
                     }
                 }
-                pBar.style.width = `${Math.round(currentProgress)}%`;
+                if (pBar) pBar.style.width = `${Math.round(currentProgress)}%`;
                 if (pText) pText.innerText = `${Math.round(currentProgress)}%`;
-
-                // Countdown calculation
-                const remaining = Math.max(1, initialEta - elapsed);
-                if (etaEl) {
-                    etaEl.innerText = elapsed >= initialEta ? (currentLang === 'uk' ? 'Фіналізація...' : 'Finalizing...') : `~${remaining}s`;
-                }
 
                 // Cold Start specific stages and transition to Active Cluster
                 if (!isWarm) {
@@ -1273,8 +1267,7 @@
                 if (liveSubtext && subEl) liveSubtext.innerText = subEl.innerText;
                 if (liveBar) liveBar.style.width = `${Math.round(currentProgress)}%`;
                 if (pendingBadge) {
-                    const etaTxt = elapsed >= initialEta ? 'Finalizing...' : `~${remaining}s left`;
-                    pendingBadge.innerText = `${elapsed}s elapsed • ${etaTxt}`;
+                    pendingBadge.innerText = `${elapsed}s elapsed`;
                 }
                 if (liveDot) {
                     liveDot.className = (!isWarm && elapsed < 50) ? "w-2 h-2 rounded-full bg-sky-400 animate-pulse" : "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
@@ -1348,6 +1341,7 @@
             };
             localStorage.setItem('aura_active_task', JSON.stringify(activeTask));
             renderPendingStreamCard(activeTask);
+            pollActiveTask(activeTask);
 
             // 2. Smoothly scroll into view so user sees sent message & live response immediately
             const streamEl = document.getElementById('studioChatStream');
@@ -1384,6 +1378,7 @@
                 const pText = document.getElementById('loadingPercentText');
 
                 if (data.status === 'success') {
+                    if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     clearPendingStreamCard();
                     if (pBar) pBar.style.width = '100%';
@@ -1394,16 +1389,19 @@
                         refreshStreamHistory();
                     }, 400);
                 } else if (data.status === 'daily_limit_reached') {
+                    if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Daily free limit reached.');
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                     openPaywall();
                 } else if (data.status === 'auth_required') {
+                    if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Authentication required.');
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                     openAuthModal();
                 } else {
+                    if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Generation failed on GPU cluster.');
                     document.getElementById('generationLoadingBox').classList.add('hidden');
@@ -1841,6 +1839,9 @@
                             pollingInterval = null;
                             localStorage.removeItem('aura_active_task');
                             clearPendingStreamCard();
+                            stopIntelligentLoadingHUD();
+                            const loadingBox = document.getElementById('generationLoadingBox');
+                            if (loadingBox) loadingBox.classList.add('hidden');
 
                             // Show notification & refresh stream
                             showToastNotification(currentLang === 'uk' ? '✨ Генерацію відновлено! Завершено у фоновому режимі.' : '✨ Generation restored! Completed in background.');
@@ -1859,6 +1860,9 @@
                             clearInterval(pollingInterval);
                             pollingInterval = null;
                             localStorage.removeItem('aura_active_task');
+                            stopIntelligentLoadingHUD();
+                            const loadingBox = document.getElementById('generationLoadingBox');
+                            if (loadingBox) loadingBox.classList.add('hidden');
                             renderFailedStreamCard(activeTask, data.error || 'Generation failed');
                         }
                     }

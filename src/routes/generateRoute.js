@@ -136,24 +136,22 @@ export async function handleGenerate(request, env, ctx, url) {
     // Register initial PROCESSING state in D1 for window-close & reload recovery
     if (env.DB) {
       const inThumbEarly = isTextToImage ? null : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
-      ctx.waitUntil((async () => {
-        try {
-          await env.DB.prepare(`
-            INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, status, duration_seconds, is_shared, share_token)
-            VALUES (?, ?, 'web', ?, ?, ?, 'PROCESSING', 0, 1, ?)
-            ON CONFLICT(id) DO UPDATE SET status = 'PROCESSING'
-          `).bind(
-            taskId,
-            user_id,
-            preset_id || (isTextToImage ? "text_to_image" : "custom"),
-            prompt.slice(0, 500),
-            inThumbEarly,
-            shareToken
-          ).run();
-        } catch (e) {
-          console.error("D1 initial task registration error:", e);
-        }
-      })());
+      try {
+        await env.DB.prepare(`
+          INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, status, duration_seconds, is_shared, share_token)
+          VALUES (?, ?, 'web', ?, ?, ?, 'PROCESSING', 0, 1, ?)
+          ON CONFLICT(id) DO UPDATE SET status = 'PROCESSING'
+        `).bind(
+          taskId,
+          user_id,
+          preset_id || (isTextToImage ? "text_to_image" : "custom"),
+          prompt.slice(0, 500),
+          inThumbEarly,
+          shareToken
+        ).run();
+      } catch (e) {
+        console.error("D1 initial task registration error:", e);
+      }
     }
 
     const t0 = Date.now();
