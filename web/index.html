@@ -77,6 +77,19 @@
             background: rgba(0, 0, 0, 0.12);
             border-radius: 4px;
         }
+        @keyframes shy-breathe {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.96;
+            }
+            50% {
+                transform: scale(1.03);
+                opacity: 0.82;
+            }
+        }
+        .shy-breathe {
+            animation: shy-breathe 2.8s ease-in-out infinite;
+        }
     </style>
 </head>
 <body class="bg-[#F8FAFC] text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
@@ -366,11 +379,10 @@
                 </span>
             </div>
 
-            <!-- Central Animated Pulse -->
-            <div class="relative w-20 h-20 mx-auto flex items-center justify-center">
-                <div class="absolute inset-0 rounded-full border-4 border-indigo-400/20 animate-ping"></div>
-                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30 animate-pulse">
-                    <i data-lucide="sparkles" class="w-8 h-8"></i>
+            <!-- Central Shy Breathing Indicator -->
+            <div class="relative w-16 h-16 mx-auto flex items-center justify-center">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shy-breathe">
+                    <i data-lucide="sparkles" class="w-7 h-7"></i>
                 </div>
             </div>
 
@@ -457,6 +469,32 @@
                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-indigo-600"></i>
                     <span>Try Another Style</span>
                 </button>
+        </div>
+
+        <!-- Studio Stream & Activity Feed (Chat Mode with Past Generations) -->
+        <div id="studioChatStream" class="w-full max-w-3xl space-y-4 pt-4">
+            <div class="flex items-center justify-between px-2 pb-1 border-b border-slate-200/80">
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-indigo-500"></div>
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Studio Stream & History
+                    </h2>
+                    <span id="streamCountBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono font-bold">0</span>
+                </div>
+                <button onclick="refreshStreamHistory()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 transition" title="Sync Feed">
+                    <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Sync</span>
+                </button>
+            </div>
+
+            <!-- In-Flight Pending Task Container (Rendered dynamically if active) -->
+            <div id="streamPendingBox" class="hidden"></div>
+
+            <!-- Generations Timeline List -->
+            <div id="streamItemsList" class="space-y-4">
+                <div id="streamEmptyState" class="text-center py-8 text-slate-400 text-xs">
+                    Your generated photos and transformations will appear here in your stream.
+                </div>
             </div>
         </div>
 
@@ -763,6 +801,7 @@
             setupDragAndDrop();
             setupClipboardPaste();
             loadPublicConfig();
+            checkAndRestoreActiveTask();
         }
 
         async function loadPublicConfig() {
@@ -874,6 +913,9 @@
                                 } else {
                                     planEl.innerText = `Free Tier (${data.free_remaining !== undefined ? data.free_remaining : 5}/${data.daily_limit || 5} Free Daily)`;
                                 }
+                            }
+                            if (data.history) {
+                                renderStreamHistory(data.history);
                             }
                         }
                     }).catch(() => {});
@@ -1218,6 +1260,19 @@
                 }
             } catch(e) {}
 
+            const taskId = `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
+            const activeTask = {
+                taskId,
+                prompt,
+                presetId: selectedPresetId || (hasPhoto ? 'custom' : 'text_to_image'),
+                hasPhoto,
+                inputImage: attachedFileBase64 || null,
+                startedAt: Date.now(),
+                etaSec
+            };
+            localStorage.setItem('aura_active_task', JSON.stringify(activeTask));
+            renderPendingStreamCard(activeTask);
+
             document.getElementById('resultCanvasBox').classList.add('hidden');
             document.getElementById('generationLoadingBox').classList.remove('hidden');
             document.getElementById('generateBtn').disabled = true;
@@ -1230,6 +1285,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        task_id: taskId,
                         image_base64: attachedFileBase64 || null,
                         prompt: prompt,
                         preset_id: selectedPresetId || (hasPhoto ? 'custom' : 'text_to_image'),
@@ -1246,26 +1302,36 @@
                 const pText = document.getElementById('loadingPercentText');
 
                 if (data.status === 'success') {
+                    localStorage.removeItem('aura_active_task');
+                    clearPendingStreamCard();
                     if (pBar) pBar.style.width = '100%';
                     if (pText) pText.innerText = '100%';
                     setTimeout(() => {
                         document.getElementById('generationLoadingBox').classList.add('hidden');
                         showResult(data);
+                        refreshStreamHistory();
                     }, 400);
                 } else if (data.status === 'daily_limit_reached') {
+                    localStorage.removeItem('aura_active_task');
+                    clearPendingStreamCard();
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                     openPaywall();
                 } else if (data.status === 'auth_required') {
+                    localStorage.removeItem('aura_active_task');
+                    clearPendingStreamCard();
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                     openAuthModal();
                 } else {
+                    localStorage.removeItem('aura_active_task');
+                    clearPendingStreamCard();
                     alert('Error: ' + (data.message || 'Generation failed'));
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                 }
             } catch(e) {
+                // If connection aborted because window was closed or network hiccup, do not clear localStorage if task was in progress
                 stopIntelligentLoadingHUD();
                 document.getElementById('generationLoadingBox').classList.add('hidden');
-                alert('Connection error: ' + e.message);
+                console.warn('Direct fetch interrupted, task will continue background recovery if active:', e);
             } finally {
                 document.getElementById('generateBtn').disabled = false;
             }
@@ -1342,6 +1408,279 @@
             document.getElementById('mainPromptInput').focus();
             document.getElementById('mainPromptInput').select();
             document.getElementById('dropZone').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Studio Stream & History Feed State
+        let streamItems = [];
+        let pollingInterval = null;
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function escapeJs(str) {
+            if (!str) return '';
+            return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, ' ');
+        }
+
+        function reusePrompt(promptText) {
+            const input = document.getElementById('mainPromptInput');
+            if (input) {
+                input.value = promptText;
+                input.focus();
+                document.getElementById('photoStudioBox').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        function refreshStreamHistory() {
+            if (!currentUser || !currentUser.id) return;
+            fetch(`/api/user/profile?user_id=${encodeURIComponent(currentUser.id)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success' && data.history) {
+                        renderStreamHistory(data.history);
+                    }
+                }).catch(() => {});
+        }
+
+        function renderStreamHistory(history) {
+            streamItems = history || [];
+            const list = document.getElementById('streamItemsList');
+            const badge = document.getElementById('streamCountBadge');
+            if (badge) badge.innerText = streamItems.length;
+
+            if (!list) return;
+
+            if (!streamItems.length) {
+                list.innerHTML = `
+                    <div id="streamEmptyState" class="text-center py-8 text-slate-400 text-xs">
+                        Your generated photos and transformations will appear here in your stream.
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = streamItems.map(g => {
+                const imgSrc = g.output_image_url || g.input_image_url;
+                const inSrc = g.input_image_url && g.input_image_url !== 'uploaded_image' ? g.input_image_url : null;
+                const shareUrl = `/s/${g.share_token || g.id}`;
+                const presetName = (g.preset_id || 'Photo').replace(/_/g, ' ').toUpperCase();
+                const durText = g.duration_seconds ? `${parseFloat(g.duration_seconds).toFixed(1)}s` : '';
+
+                return `
+                <div class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm space-y-4 hover:border-indigo-200 transition">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-start gap-2.5">
+                            <div class="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 border border-indigo-100">
+                                👤
+                            </div>
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-xs font-bold text-slate-900">${presetName}</span>
+                                    ${durText ? `<span class="text-[10px] text-slate-400 font-mono">${durText}</span>` : ''}
+                                </div>
+                                <p class="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">${escapeHtml(g.prompt)}</p>
+                            </div>
+                        </div>
+                        <button onclick="reusePrompt('${escapeJs(g.prompt)}')" class="px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 text-xs font-medium transition flex items-center gap-1 shrink-0 border border-slate-200" title="Remix Prompt">
+                            <i data-lucide="corner-up-left" class="w-3 h-3"></i>
+                            <span class="hidden sm:inline">Remix</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 ${inSrc ? 'sm:grid-cols-2' : 'max-w-md mx-auto'} gap-3 items-center">
+                        ${inSrc ? `
+                        <div class="space-y-1">
+                            <span class="text-[11px] font-semibold text-slate-400 px-1">Original</span>
+                            <div class="rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 aspect-square flex items-center justify-center">
+                                <img src="${inSrc}" class="w-full h-full object-cover">
+                            </div>
+                        </div>
+                        ` : ''}
+                        <div class="space-y-1">
+                            <span class="text-[11px] font-semibold text-indigo-600 px-1 flex items-center justify-between">
+                                <span>✨ AuraStudio AI</span>
+                                <span class="text-[9px] bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded font-bold">HD</span>
+                            </span>
+                            <div class="rounded-2xl overflow-hidden bg-slate-50 border border-indigo-200 aspect-square flex items-center justify-center group relative cursor-pointer" onclick="openFullImageModalWithSrc('${imgSrc}')">
+                                <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-102 transition duration-300">
+                                <div class="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-2xl">
+                                    <span class="text-xs text-white font-medium bg-slate-900/75 px-3 py-1.5 rounded-xl backdrop-blur">Click to Expand</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                        <span class="text-slate-400 font-mono text-[11px]">${g.created_at || 'Just now'}</span>
+                        <div class="flex items-center gap-2">
+                            <a href="${shareUrl}" target="_blank" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium transition flex items-center gap-1.5">
+                                <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                                <span>Share</span>
+                            </a>
+                            <a href="${imgSrc}" download="AuraStudio_${g.id}.png" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition flex items-center gap-1.5 shadow-sm">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                                <span>Download</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function renderPendingStreamCard(activeTask) {
+            const pendingBox = document.getElementById('streamPendingBox');
+            if (!pendingBox) return;
+
+            const presetName = (activeTask.presetId || 'Transformation').replace(/_/g, ' ').toUpperCase();
+            pendingBox.innerHTML = `
+                <div class="bg-white rounded-3xl p-5 border-2 border-indigo-200/90 shadow-md space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shy-breathe shrink-0">
+                                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-indigo-950">${presetName}</span>
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span class="text-[10px] text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">Processing</span>
+                                </div>
+                                <p class="text-[11px] text-slate-500">Task running on L40S GPU. You can close this tab — result restores automatically!</p>
+                            </div>
+                        </div>
+                        <span id="pendingElapsedBadge" class="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full">
+                            ${activeTask.etaSec ? `~${activeTask.etaSec}s` : 'Processing'}
+                        </span>
+                    </div>
+
+                    <div class="bg-slate-50 rounded-2xl p-3 border border-slate-200 text-xs text-slate-700 font-medium">
+                        "${escapeHtml(activeTask.prompt)}"
+                    </div>
+                </div>
+            `;
+            pendingBox.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function clearPendingStreamCard() {
+            const pendingBox = document.getElementById('streamPendingBox');
+            if (pendingBox) {
+                pendingBox.innerHTML = '';
+                pendingBox.classList.add('hidden');
+            }
+        }
+
+        function checkAndRestoreActiveTask() {
+            const raw = localStorage.getItem('aura_active_task');
+            if (!raw) return;
+
+            let activeTask;
+            try {
+                activeTask = JSON.parse(raw);
+            } catch(e) {
+                localStorage.removeItem('aura_active_task');
+                return;
+            }
+
+            if (!activeTask || !activeTask.taskId) {
+                localStorage.removeItem('aura_active_task');
+                return;
+            }
+
+            // If task is older than 5 minutes, assume expired
+            const ageMs = Date.now() - (activeTask.startedAt || 0);
+            if (ageMs > 300000) {
+                localStorage.removeItem('aura_active_task');
+                return;
+            }
+
+            renderPendingStreamCard(activeTask);
+            pollActiveTask(activeTask);
+        }
+
+        function pollActiveTask(activeTask) {
+            if (pollingInterval) clearInterval(pollingInterval);
+
+            const badge = document.getElementById('pendingElapsedBadge');
+            let pollCount = 0;
+
+            pollingInterval = setInterval(async () => {
+                pollCount++;
+                const elapsedSec = Math.floor((Date.now() - activeTask.startedAt) / 1000);
+                if (badge) badge.innerText = `${elapsedSec}s elapsed`;
+
+                try {
+                    const res = await fetch(`/api/task-status/${activeTask.taskId}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.status === 'success') {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                            localStorage.removeItem('aura_active_task');
+                            clearPendingStreamCard();
+
+                            // Show notification & refresh stream
+                            showToastNotification(currentLang === 'uk' ? '✨ Генерацію відновлено! Завершено у фоновому режимі.' : '✨ Generation restored! Completed in background.');
+                            refreshStreamHistory();
+
+                            // Also display in main canvas if resultCanvasBox is available
+                            if (data.output_image_url) {
+                                showResult({
+                                    result_base64: data.output_image_url,
+                                    duration_seconds: data.duration_seconds || elapsedSec,
+                                    share_url: data.share_url,
+                                    mode: activeTask.hasPhoto ? 'image_to_image' : 'text_to_image'
+                                });
+                            }
+                        } else if (data.status === 'failed') {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                            localStorage.removeItem('aura_active_task');
+                            clearPendingStreamCard();
+                            alert(currentLang === 'uk' ? 'Помилка фонової генерації: ' + (data.error || 'Failed') : 'Background generation error: ' + (data.error || 'Failed'));
+                        }
+                    }
+                } catch(e) {
+                    console.error("Polling error:", e);
+                }
+
+                // Timeout after 5 minutes
+                if (pollCount > 100) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                    localStorage.removeItem('aura_active_task');
+                    clearPendingStreamCard();
+                }
+            }, 3000);
+        }
+
+        function showToastNotification(message) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-6 right-6 z-50 bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 transition transform translate-y-4 opacity-0 border border-slate-700/60';
+            toast.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4 text-cyan-400"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            if (window.lucide) lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => toast.remove(), 400);
+            }, 5000);
+        }
+
+        function openFullImageModalWithSrc(src) {
+            if (!src) return;
+            document.getElementById('fullModalImg').src = src;
+            document.getElementById('fullImageModal').classList.remove('hidden');
+            document.getElementById('fullImageModal').classList.add('flex');
         }
 
         function openFullImageModal() {

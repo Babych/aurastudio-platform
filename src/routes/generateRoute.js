@@ -52,7 +52,7 @@ export async function handleGenerate(request, env, ctx, url) {
 
   try {
     const body = await request.json();
-    const { image_base64, prompt, preset_id, user_id, user_email, user_name } = body;
+    const { image_base64, prompt, preset_id, user_id, user_email, user_name, task_id } = body;
 
     // Block anonymous generation (Anti-Bot Security)
     if (!user_id || user_id === "anonymous" || user_id === "anonymous_web") {
@@ -105,7 +105,7 @@ export async function handleGenerate(request, env, ctx, url) {
       }
     }
 
-    const taskId = `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
+    const taskId = task_id || `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
     const shareToken = taskId.replace('task_', 's_');
 
     const isTextToImage = !image_base64 || image_base64 === "empty" || (typeof image_base64 === "string" && image_base64.trim() === "");
@@ -129,6 +129,29 @@ export async function handleGenerate(request, env, ctx, url) {
       cfg: 1.95,
       seed: 888424
     };
+
+    // Register initial PROCESSING state in D1 for window-close & reload recovery
+    if (env.DB) {
+      const inThumbEarly = isTextToImage ? null : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
+      ctx.waitUntil((async () => {
+        try {
+          await env.DB.prepare(`
+            INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, status, duration_seconds, is_shared, share_token)
+            VALUES (?, ?, 'web', ?, ?, ?, 'PROCESSING', 0, 1, ?)
+            ON CONFLICT(id) DO UPDATE SET status = 'PROCESSING'
+          `).bind(
+            taskId,
+            user_id,
+            preset_id || (isTextToImage ? "text_to_image" : "custom"),
+            prompt.slice(0, 500),
+            inThumbEarly,
+            shareToken
+          ).run();
+        } catch (e) {
+          console.error("D1 initial task registration error:", e);
+        }
+      })());
+    }
 
     const t0 = Date.now();
     const modalData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, payload);
@@ -173,6 +196,10 @@ export async function handleGenerate(request, env, ctx, url) {
           await env.DB.prepare(`
             INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, output_image_url, status, duration_seconds, is_shared, share_token)
             VALUES (?, ?, 'web', ?, ?, ?, ?, 'SUCCESS', ?, 1, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              output_image_url = excluded.output_image_url,
+              status = 'SUCCESS',
+              duration_seconds = excluded.duration_seconds
           `).bind(
             taskId,
             user_id,
@@ -216,6 +243,9 @@ export async function handleGenerate(request, env, ctx, url) {
       free_remaining: isAdmin ? 999 : Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsed + 1))
     });
   } catch (err) {
+    if (env.DB && taskId) {
+      ctx.waitUntil(env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?").bind(err.message, taskId).run().catch(() => {}));
+    }
     logCriticalError(env, ctx, "modal_photo_gpu", err.message, null);
     return jsonResponse({ status: "error", message: err.message }, 500);
   }
