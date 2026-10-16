@@ -168,43 +168,44 @@ export async function handleGenerate(request, env, ctx, url) {
       }
     }
 
-    const t0 = Date.now();
-    const modalData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, payload);
+    const origin = url.origin;
+    const shareUrl = `${origin}/s/${shareToken}`;
+    const twitterText = encodeURIComponent("Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:");
+    const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${twitterText}&url=${encodeURIComponent(shareUrl)}`;
 
-    if (!modalData || !modalData.result_base64) {
-      throw new Error(modalData.message || "Model failed to return edited image");
-    }
+    // Asynchronous Execution via ctx.waitUntil (Bypasses Cloudflare 100s timeout!)
+    ctx.waitUntil((async () => {
+      const t0 = Date.now();
+      try {
+        const modalData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, payload);
 
-    let dur = modalData.duration_seconds || ((Date.now() - t0) / 1000).toFixed(1);
-    let resultDataUri = modalData.result_base64.startsWith("data:")
-      ? modalData.result_base64
-      : `data:image/png;base64,${modalData.result_base64}`;
+        if (!modalData || !modalData.result_base64) {
+          throw new Error(modalData ? modalData.message : "Model failed to return edited image");
+        }
 
-    // Async D1 Journaling
-    if (env.DB) {
-      ctx.waitUntil((async () => {
-        try {
+        let dur = modalData.duration_seconds || ((Date.now() - t0) / 1000).toFixed(1);
+        let resultDataUri = modalData.result_base64.startsWith("data:")
+          ? modalData.result_base64
+          : `data:image/png;base64,${modalData.result_base64}`;
+
+        if (env.DB) {
           await env.DB.prepare(`
             UPDATE users 
             SET free_generations_used = free_generations_used + 1,
                 total_generations = total_generations + 1
             WHERE id = ?
-          `).bind(user_id).run();
+          `).bind(user_id).run().catch(() => {});
 
           let inThumb = isTextToImage ? null : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
           let outThumb = resultDataUri;
 
-          // Save to R2 if available
           if (env.STORAGE) {
             const inExt = inThumb && inThumb.includes("image/png") ? ".png" : ".jpg";
             const outExt = outThumb.includes("image/png") ? ".png" : ".jpg";
-            
             const r2InUrl = inThumb ? await uploadToR2(env.STORAGE, `in_${taskId}${inExt}`, inThumb) : null;
             const r2OutUrl = await uploadToR2(env.STORAGE, `out_${taskId}${outExt}`, outThumb);
-            
-            if (r2InUrl) inThumb = url.origin + r2InUrl;
-            if (r2OutUrl) outThumb = url.origin + r2OutUrl;
-            
+            if (r2InUrl) inThumb = origin + r2InUrl;
+            if (r2OutUrl) outThumb = origin + r2OutUrl;
             resultDataUri = outThumb;
           }
 
@@ -234,26 +235,24 @@ export async function handleGenerate(request, env, ctx, url) {
             parseFloat(dur),
             JSON.stringify({ preset: preset_id, prompt: prompt.slice(0, 100), share_token: shareToken })
           ).run();
-        } catch (e) {
-          console.error("D1 async journaling error:", e);
         }
-      })());
-    }
+      } catch (bgErr) {
+        console.error("Background Modal generation failed:", bgErr);
+        if (env.DB) {
+          await env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?").bind(bgErr.message || "GPU cluster error", taskId).run().catch(() => {});
+        }
+        logCriticalError(env, ctx, "modal_photo_gpu", bgErr.message, null);
+      }
+    })());
 
-    const origin = url.origin;
-    const shareUrl = `${origin}/s/${shareToken}`;
-    const twitterText = encodeURIComponent("Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:");
-    const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${twitterText}&url=${encodeURIComponent(shareUrl)}`;
-
+    // Immediate Response to Browser: task is queued and monitored asynchronously via /api/task-status
     return jsonResponse({
-      status: "success",
+      status: "queued",
       task_id: taskId,
       mode: isTextToImage ? "text_to_image" : "image_to_image",
       share_token: shareToken,
       share_url: shareUrl,
       twitter_intent_url: twitterIntentUrl,
-      duration_seconds: parseFloat(dur),
-      result_base64: resultDataUri,
       daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
       free_remaining: isAdmin ? 999 : Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsed + 1))
     });

@@ -1373,11 +1373,10 @@
             }
 
             document.getElementById('resultCanvasBox').classList.add('hidden');
-            document.getElementById('generationLoadingBox').classList.remove('hidden');
+            // Consolidate: Hide top redundant box, in-chat card handles full progress!
+            const topLoadingBox = document.getElementById('generationLoadingBox');
+            if (topLoadingBox) topLoadingBox.classList.add('hidden');
             document.getElementById('generateBtn').disabled = true;
-
-            startIntelligentLoadingHUD(hasPhoto, etaSec, queuePos, isWarm);
-            if (window.lucide) lucide.createIcons();
 
             try {
                 const effectiveUserId = (currentUser && currentUser.id) ? currentUser.id : getGuestUserId();
@@ -1395,48 +1394,34 @@
                     })
                 });
 
-                stopIntelligentLoadingHUD();
                 const data = await res.json();
 
-                const pBar = document.getElementById('loadingProgressBar');
-                const pText = document.getElementById('loadingPercentText');
-
-                if (data.status === 'success') {
+                if (data.status === 'queued' || data.status === 'processing') {
+                    // Task accepted and dispatched to Modal GPU in background. Polling loop takes full control!
+                    console.log('[*] Task successfully queued on GPU cluster:', data.task_id);
+                } else if (data.status === 'success') {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     clearPendingStreamCard();
-                    if (pBar) pBar.style.width = '100%';
-                    if (pText) pText.innerText = '100%';
-                    setTimeout(() => {
-                        document.getElementById('generationLoadingBox').classList.add('hidden');
-                        showResult(data, inputPhotoBase64);
-                        refreshStreamHistory();
-                    }, 400);
+                    showResult(data, inputPhotoBase64);
+                    refreshStreamHistory();
                 } else if (data.status === 'daily_limit_reached') {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Daily free limit reached.');
-                    document.getElementById('generationLoadingBox').classList.add('hidden');
                     openPaywall();
                 } else if (data.status === 'auth_required') {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Authentication required.');
-                    document.getElementById('generationLoadingBox').classList.add('hidden');
                     openAuthModal();
                 } else {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
                     renderFailedStreamCard(activeTask, data.message || 'Generation failed on GPU cluster.');
-                    document.getElementById('generationLoadingBox').classList.add('hidden');
                 }
             } catch(e) {
-                stopIntelligentLoadingHUD();
-                if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
-                localStorage.removeItem('aura_active_task');
-                document.getElementById('generationLoadingBox').classList.add('hidden');
-                console.error('Generation request failed:', e);
-                renderFailedStreamCard(activeTask, e.message || 'Generation failed or GPU cluster unavailable. Please try again.');
+                console.error('Direct fetch error, background polling will continue if task registered:', e);
             } finally {
                 document.getElementById('generateBtn').disabled = false;
             }
@@ -1845,22 +1830,47 @@
                 const elapsedSec = Math.floor((Date.now() - activeTask.startedAt) / 1000);
                 if (badge) badge.innerText = `${elapsedSec}s elapsed`;
 
-                // Update live stage in chat
-                if (elapsedSec < 4) {
-                    if (liveBadge) liveBadge.innerText = 'Starting...';
-                    if (liveSubtext) liveSubtext.innerText = 'Connecting to Nvidia L40S GPU cluster...';
-                    if (liveBar) liveBar.style.width = '20%';
-                    if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
-                } else if (elapsedSec < 22) {
-                    if (liveBadge) liveBadge.innerText = 'Generating...';
-                    if (liveSubtext) liveSubtext.innerText = 'Neural latent diffusion in progress (Qwen 2.5 DiT)...';
-                    if (liveBar) liveBar.style.width = `${Math.min(85, 20 + (elapsedSec - 4) * 3.5)}%`;
-                    if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                const isCold = activeTask.etaSec > 40;
+                // Honest, granular stage updates in chat based on cold vs warm
+                if (isCold) {
+                    if (elapsedSec < 35) {
+                        if (liveBadge) liveBadge.innerText = '⚡ GPU Cold Start...';
+                        if (liveSubtext) liveSubtext.innerText = 'Allocating Nvidia L40S GPU & mounting storage...';
+                        if (liveBar) liveBar.style.width = `${Math.min(30, 5 + elapsedSec * 0.8)}%`;
+                        if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
+                    } else if (elapsedSec < 90) {
+                        if (liveBadge) liveBadge.innerText = '⚡ Loading 15.2GB DiT...';
+                        if (liveSubtext) liveSubtext.innerText = 'Streaming Q6_K master weights into 48GB VRAM...';
+                        if (liveBar) liveBar.style.width = `${Math.min(65, 30 + (elapsedSec - 35) * 0.6)}%`;
+                        if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+                    } else if (elapsedSec < 135) {
+                        if (liveBadge) liveBadge.innerText = '🎨 Neural Diffusion...';
+                        if (liveSubtext) liveSubtext.innerText = 'Executing 22-step DiT latent transformation...';
+                        if (liveBar) liveBar.style.width = `${Math.min(88, 65 + (elapsedSec - 90) * 0.5)}%`;
+                        if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                    } else {
+                        if (liveBadge) liveBadge.innerText = '✨ Finalizing Master 8K...';
+                        if (liveSubtext) liveSubtext.innerText = 'Decoding high-resolution VAE latents into photo...';
+                        if (liveBar) liveBar.style.width = '95%';
+                        if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                    }
                 } else {
-                    if (liveBadge) liveBadge.innerText = 'Finalizing...';
-                    if (liveSubtext) liveSubtext.innerText = 'Decoding master latents into 8K photo...';
-                    if (liveBar) liveBar.style.width = '94%';
-                    if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                    if (elapsedSec < 4) {
+                        if (liveBadge) liveBadge.innerText = '🟢 Warm GPU Ready...';
+                        if (liveSubtext) liveSubtext.innerText = 'Connected to hot Nvidia L40S slot...';
+                        if (liveBar) liveBar.style.width = '25%';
+                        if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+                    } else if (elapsedSec < 20) {
+                        if (liveBadge) liveBadge.innerText = '🎨 Neural Diffusion...';
+                        if (liveSubtext) liveSubtext.innerText = 'Executing 22-step DiT latent transformation...';
+                        if (liveBar) liveBar.style.width = `${Math.min(85, 25 + (elapsedSec - 4) * 3.8)}%`;
+                        if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                    } else {
+                        if (liveBadge) liveBadge.innerText = '✨ Finalizing...';
+                        if (liveSubtext) liveSubtext.innerText = 'Decoding master latents into 8K photo...';
+                        if (liveBar) liveBar.style.width = '95%';
+                        if (liveDot) liveDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                    }
                 }
 
                 try {

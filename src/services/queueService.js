@@ -34,7 +34,7 @@ export async function getLiveQueueStatus(env) {
   }
 
   const position = activeJobs + 1;
-  const baseEta = isWarm ? 22 : 78;
+  const baseEta = isWarm ? 22 : 160;
   const etaSeconds = baseEta * position;
 
   return {
@@ -79,10 +79,10 @@ export async function getTaskStatus(env, taskId, origin) {
     };
   }
 
-  // If task has been PROCESSING for > 300s, auto-expire it
+  // If task has been PROCESSING for > 600s (10 min), auto-expire it
   if (task.status === "PROCESSING" && task.created_at) {
     const createdDate = new Date(task.created_at.includes("Z") ? task.created_at : task.created_at + "Z").getTime();
-    if (Date.now() - createdDate > 300000) {
+    if (Date.now() - createdDate > 600000) {
       await env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = 'Generation timed out' WHERE id = ?").bind(task.id).run().catch(() => {});
       return {
         status: "failed",

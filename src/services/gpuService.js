@@ -8,7 +8,7 @@ export async function callModalWithFallback(endpoints, payload) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(65000) // 65s max per endpoint before failing over to next GPU
+        signal: AbortSignal.timeout(240000) // 240s max: allows cold start + ComfyUI + Q6_K weights mounting to finish safely in background
       });
       if (res.ok) {
         const data = await res.json();
@@ -21,7 +21,7 @@ export async function callModalWithFallback(endpoints, payload) {
         errors.push(`GPU status ${res.status}: ${txt.slice(0, 100)}`);
       }
     } catch (e) {
-      errors.push(e.name === "TimeoutError" ? "GPU cold start timed out (>65s)" : e.message);
+      errors.push(e.name === "TimeoutError" ? "GPU cold start timed out (>240s)" : e.message);
     }
   }
   throw new Error(`GPU cluster temporarily unavailable. Please retry in a few moments.`);
