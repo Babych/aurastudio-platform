@@ -50,9 +50,11 @@ export async function handleShareCreate(request, env, url) {
 export async function handleGenerate(request, env, ctx, url) {
   if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
+  let currentTaskId = null;
   try {
     const body = await request.json();
     const { image_base64, prompt, preset_id, user_id, user_email, user_name, task_id } = body;
+    currentTaskId = task_id || null;
 
     // Block anonymous generation (Anti-Bot Security)
     if (!user_id || user_id === "anonymous" || user_id === "anonymous_web") {
@@ -106,6 +108,7 @@ export async function handleGenerate(request, env, ctx, url) {
     }
 
     const taskId = task_id || `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
+    currentTaskId = taskId;
     const shareToken = taskId.replace('task_', 's_');
 
     const isTextToImage = !image_base64 || image_base64 === "empty" || (typeof image_base64 === "string" && image_base64.trim() === "");
@@ -243,8 +246,8 @@ export async function handleGenerate(request, env, ctx, url) {
       free_remaining: isAdmin ? 999 : Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsed + 1))
     });
   } catch (err) {
-    if (env.DB && taskId) {
-      ctx.waitUntil(env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?").bind(err.message, taskId).run().catch(() => {}));
+    if (env.DB && currentTaskId) {
+      ctx.waitUntil(env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?").bind(err.message, currentTaskId).run().catch(() => {}));
     }
     logCriticalError(env, ctx, "modal_photo_gpu", err.message, null);
     return jsonResponse({ status: "error", message: err.message }, 500);

@@ -79,6 +79,18 @@ export async function getTaskStatus(env, taskId, origin) {
     };
   }
 
+  // If task has been PROCESSING for > 300s, auto-expire it
+  if (task.status === "PROCESSING" && task.created_at) {
+    const createdDate = new Date(task.created_at.includes("Z") ? task.created_at : task.created_at + "Z").getTime();
+    if (Date.now() - createdDate > 300000) {
+      await env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = 'Generation timed out' WHERE id = ?").bind(task.id).run().catch(() => {});
+      return {
+        status: "failed",
+        error: "Generation timed out"
+      };
+    }
+  }
+
   // Active or pending queue position
   const countRow = await env.DB.prepare(`
     SELECT COUNT(*) as count 

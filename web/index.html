@@ -762,6 +762,17 @@
         let selectedPresetId = null;
         let telegramPollInterval = null;
         let currentRating = 5;
+        let cachedUserHistory = null;
+
+        function formatImgSrc(src, id) {
+            if (!src) return id ? `/api/image/${id}.png` : '';
+            if (src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://') || src.startsWith('/')) {
+                return src;
+            }
+            if (src.startsWith('/9j/')) return `data:image/jpeg;base64,${src}`;
+            if (src.startsWith('iVBOR')) return `data:image/png;base64,${src}`;
+            return `data:image/jpeg;base64,${src}`;
+        }
 
         // Multilingual Translations
         const TRANSLATIONS = {
@@ -915,7 +926,9 @@
                                 }
                             }
                             if (data.history) {
+                                cachedUserHistory = data.history;
                                 renderStreamHistory(data.history);
+                                renderUserModalHistory(data.history);
                             }
                         }
                     }).catch(() => {});
@@ -1443,7 +1456,9 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.status === 'success' && data.history) {
+                        cachedUserHistory = data.history;
                         renderStreamHistory(data.history);
+                        renderUserModalHistory(data.history);
                     }
                 }).catch(() => {});
         }
@@ -1456,7 +1471,9 @@
 
             if (!list) return;
 
-            if (!streamItems.length) {
+            const validStream = (streamItems || []).filter(g => g.output_image_url || (g.status === 'SUCCESS' && g.input_image_url));
+
+            if (!validStream.length) {
                 list.innerHTML = `
                     <div id="streamEmptyState" class="text-center py-8 text-slate-400 text-xs">
                         Your generated photos and transformations will appear here in your stream.
@@ -1465,9 +1482,11 @@
                 return;
             }
 
-            list.innerHTML = streamItems.map(g => {
-                const imgSrc = g.output_image_url || g.input_image_url;
-                const inSrc = g.input_image_url && g.input_image_url !== 'uploaded_image' ? g.input_image_url : null;
+            list.innerHTML = validStream.map(g => {
+                const outImg = formatImgSrc(g.output_image_url, g.id);
+                const inImg = g.input_image_url && g.input_image_url !== 'uploaded_image' ? formatImgSrc(g.input_image_url) : null;
+                const imgSrc = outImg || inImg;
+                const inSrc = inImg;
                 const shareUrl = `/s/${g.share_token || g.id}`;
                 const presetName = (g.preset_id || 'Photo').replace(/_/g, ' ').toUpperCase();
                 const durText = g.duration_seconds ? `${parseFloat(g.duration_seconds).toFixed(1)}s` : '';
@@ -1728,34 +1747,79 @@
             document.getElementById('authModal').classList.remove('flex');
         }
 
+        function renderUserModalHistory(history) {
+            const grid = document.getElementById('userHistoryGrid');
+            if (!grid) return;
+
+            const items = (history || []).filter(g => g.output_image_url || g.input_image_url || g.status === 'PROCESSING');
+            if (!items.length) {
+                grid.innerHTML = '<div class="col-span-3 text-center py-6 text-xs text-slate-400">No creations yet. Create your first portrait above!</div>';
+                return;
+            }
+
+            grid.innerHTML = items.map(g => {
+                const outImg = formatImgSrc(g.output_image_url, g.id);
+                const inImg = formatImgSrc(g.input_image_url);
+                const imgSrc = outImg || inImg;
+                const shareUrl = `/s/${g.share_token || g.id}`;
+                const isProcessing = g.status === 'PROCESSING';
+
+                if (isProcessing) {
+                    return `
+                    <div class="relative rounded-xl overflow-hidden border border-indigo-200 bg-indigo-50/60 aspect-square shadow-sm flex flex-col items-center justify-center p-2 text-center">
+                        <div class="w-6 h-6 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin mb-1.5"></div>
+                        <span class="text-[10px] font-bold text-indigo-700">Processing...</span>
+                    </div>`;
+                }
+
+                return `
+                <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group aspect-square shadow-sm cursor-pointer" onclick="openFullImageModalWithSrc('${imgSrc}')">
+                    <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-105 transition duration-200" loading="lazy" alt="Creation">
+                    <div class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 transition p-1" onclick="event.stopPropagation()">
+                        <a href="${imgSrc}" download="AuraStudio_${g.id}.png" class="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white transition" title="Download">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        </a>
+                        <a href="${shareUrl}" target="_blank" class="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white transition" title="Open Share Page">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                        </a>
+                    </div>
+                </div>`;
+            }).join('');
+
+            if (window.lucide) lucide.createIcons();
+        }
+
         function openUserModal() {
-            if (!currentUser) return;
+            if (!currentUser) {
+                openAuthModal();
+                return;
+            }
             document.getElementById('userModalName').innerText = currentUser.name || currentUser.username || 'User';
             document.getElementById('userModalAvatar').innerText = ((currentUser.name || currentUser.username || 'U')[0]).toUpperCase();
             
-            // Load history
+            // 1. Instant render from preloaded cache if available (0ms lag)
+            if (cachedUserHistory && cachedUserHistory.length) {
+                renderUserModalHistory(cachedUserHistory);
+            } else {
+                const grid = document.getElementById('userHistoryGrid');
+                if (grid) {
+                    grid.innerHTML = `
+                        <div class="col-span-3 text-center py-6 text-xs text-slate-400 flex items-center justify-center gap-2">
+                            <div class="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span>Loading creations...</span>
+                        </div>
+                    `;
+                }
+            }
+
+            // 2. Fetch fresh updates in background
             fetch(`/api/user/profile?user_id=${encodeURIComponent(currentUser.id)}`)
                 .then(r => r.json())
                 .then(data => {
-                    if (data.status === 'success' && data.history && data.history.length) {
-                        const grid = document.getElementById('userHistoryGrid');
-                        grid.innerHTML = data.history.map(g => {
-                            const imgSrc = g.output_image_url || g.input_image_url;
-                            const shareUrl = `/s/${g.share_token || g.id}`;
-                            return `
-                            <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group aspect-square shadow-sm">
-                                <img src="${imgSrc}" class="w-full h-full object-cover">
-                                <div class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 transition p-1">
-                                    <a href="${imgSrc}" download="AuraStudio_${g.id}.png" class="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white transition" title="Download">
-                                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                                    </a>
-                                    <a href="${shareUrl}" target="_blank" class="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white transition" title="Open Share Page">
-                                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                    </a>
-                                </div>
-                            </div>
-                        `;}).join('');
-                        lucide.createIcons();
+                    if (data.status === 'success' && data.history) {
+                        cachedUserHistory = data.history;
+                        renderUserModalHistory(data.history);
+                        renderStreamHistory(data.history);
                     }
                 }).catch(() => {});
 
