@@ -259,7 +259,11 @@ export async function handleGenerate(request, env, ctx, url) {
     });
   } catch (err) {
     if (env.DB && currentTaskId) {
-      ctx.waitUntil(env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?").bind(err.message, currentTaskId).run().catch(() => {}));
+      try {
+        await env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?").bind(err.message, currentTaskId).run();
+      } catch (e) {
+        console.error("Failed to update task to FAILED:", e);
+      }
     }
     logCriticalError(env, ctx, "modal_photo_gpu", err.message, null);
     return jsonResponse({ status: "error", message: err.message }, 500);

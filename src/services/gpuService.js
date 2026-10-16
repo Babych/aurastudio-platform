@@ -8,23 +8,23 @@ export async function callModalWithFallback(endpoints, payload) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(180000)
+        signal: AbortSignal.timeout(65000) // 65s max per endpoint before failing over to next GPU
       });
       if (res.ok) {
         const data = await res.json();
         if (data.status === "success") {
           return data;
         }
-        errors.push(`${ep}: ${data.message || "Model failed to process"}`);
+        errors.push(data.message || "Model failed to process");
       } else {
         const txt = await res.text();
-        errors.push(`${ep} (HTTP ${res.status}): ${txt.slice(0, 200)}`);
+        errors.push(`GPU status ${res.status}: ${txt.slice(0, 100)}`);
       }
     } catch (e) {
-      errors.push(`${ep}: ${e.message}`);
+      errors.push(e.name === "TimeoutError" ? "GPU cold start timed out (>65s)" : e.message);
     }
   }
-  throw new Error(`All Modal GPU endpoints failed. Errors: ${errors.join(" | ")}`);
+  throw new Error(`GPU cluster temporarily unavailable. Please retry in a few moments.`);
 }
 
 export async function uploadToR2(bucket, key, base64Data) {

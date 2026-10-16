@@ -1432,10 +1432,11 @@
                 }
             } catch(e) {
                 stopIntelligentLoadingHUD();
+                if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+                localStorage.removeItem('aura_active_task');
                 document.getElementById('generationLoadingBox').classList.add('hidden');
-                console.warn('Direct fetch interrupted, task will continue background recovery if active:', e);
-                const badge = document.getElementById('liveStatusBadge');
-                if (badge) badge.innerText = 'Listening for recovery...';
+                console.error('Generation request failed:', e);
+                renderFailedStreamCard(activeTask, e.message || 'Generation failed or GPU cluster unavailable. Please try again.');
             } finally {
                 document.getElementById('generateBtn').disabled = false;
             }
