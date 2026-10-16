@@ -85,7 +85,7 @@ DB_PATH = os.path.join(BASE_STORAGE, "creative_bot.db")
 
 # Pricing & Free Limits
 PRICE_STARS = int(os.getenv("CREATIVE_PRICE_STARS", "10"))
-FREE_GENERATIONS_LIMIT = int(os.getenv("CREATIVE_FREE_LIMIT", "3"))
+FREE_GENERATIONS_LIMIT = int(os.getenv("CREATIVE_FREE_LIMIT", "5"))
 TELEMETRY_STREAM_ENABLED = True
 LAST_GENERATION_DURATION = 55.0
 

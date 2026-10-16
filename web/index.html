@@ -306,7 +306,7 @@
 
                     <!-- Generate / Send Button -->
                     <div class="flex items-center gap-2">
-                        <span class="text-[11px] text-gray-500 hidden sm:inline" id="promptCounterHint">1 Free Daily</span>
+                        <span class="text-[11px] text-gray-500 hidden sm:inline" id="promptCounterHint">5 Free Daily</span>
                         <button onclick="triggerGeneration()" id="generateBtn" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold text-xs transition shadow-lg shadow-purple-600/30 flex items-center gap-2">
                             <span data-i18n="btn_generate">Generate</span>
                             <i data-lucide="arrow-up" class="w-4 h-4"></i>
@@ -581,7 +581,7 @@
 
             <div class="space-y-1">
                 <h3 class="text-xl font-bold tracking-tight text-white">Sign In to AuraStudio</h3>
-                <p class="text-xs text-gray-400">Unlock your 1 free daily transformation.</p>
+                <p class="text-xs text-gray-400">Unlock your 5 free daily transformations.</p>
             </div>
 
             <div class="space-y-3 pt-2">
@@ -626,7 +626,7 @@
                 <div class="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold" id="userModalAvatar">U</div>
                 <div class="overflow-hidden text-left">
                     <div class="font-bold text-sm text-white truncate" id="userModalName">User</div>
-                    <div class="text-xs text-gray-400 truncate" id="userModalPlan">Free Tier (1 Free)</div>
+                    <div class="text-xs text-gray-400 truncate" id="userModalPlan">Free Tier (5 Free Daily)</div>
                 </div>
             </div>
 
@@ -810,6 +810,24 @@
                             if (starsBadge) {
                                 starsBadge.classList.remove('hidden');
                                 starsBadge.classList.add('flex');
+                            }
+                            const hint = document.getElementById('promptCounterHint');
+                            if (hint) {
+                                if (data.subscription) {
+                                    hint.innerText = 'Unlimited Pro';
+                                } else if (data.free_remaining > 0) {
+                                    hint.innerText = `${data.free_remaining}/${data.daily_limit || 5} Free Daily`;
+                                } else {
+                                    hint.innerText = `0/${data.daily_limit || 5} Free (⭐️ 10 Stars)`;
+                                }
+                            }
+                            const planEl = document.getElementById('userModalPlan');
+                            if (planEl) {
+                                if (data.subscription) {
+                                    planEl.innerText = `Pro (${data.subscription.plan_tier.toUpperCase()})`;
+                                } else {
+                                    planEl.innerText = `Free Tier (${data.free_remaining !== undefined ? data.free_remaining : 5}/${data.daily_limit || 5} Free Daily)`;
+                                }
                             }
                         }
                     }).catch(() => {});
@@ -1091,6 +1109,13 @@
 
             if (data.twitter_intent_url) {
                 document.getElementById('shareTwitterBtn').href = data.twitter_intent_url;
+            }
+
+            if (data.free_remaining !== undefined) {
+                const hint = document.getElementById('promptCounterHint');
+                if (hint) {
+                    hint.innerText = data.free_remaining > 0 ? `${data.free_remaining}/${data.daily_limit || 5} Free Daily` : `0/${data.daily_limit || 5} Free (⭐️ 10 Stars)`;
+                }
             }
 
             document.getElementById('resultCanvasBox').classList.remove('hidden');

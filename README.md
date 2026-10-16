@@ -63,7 +63,7 @@ flowchart TD
 - **`TELEGRAM_ONLY_PAYMENTS: true`**: Frictionless 1-click mobile checkout via Telegram Stars without banking or merchant bureaucracy.
 - **Cross-Platform Identity Merging**: Users signed in via Google on the Web can pay with Telegram Stars; payments are automatically linked and credited to their Web account.
 - **Real-Time Balance Badge**: Header displays live `⭐ 250 Stars` balance synced with Cloudflare D1.
-- **Quota Model**: 1 free photo/video per day; additional photo = **10 Stars**, video = **40 Stars**.
+- **Quota Model**: 5 free photos/videos per day (rolling 24h); additional photo = **10 Stars**, video = **40 Stars**.
 
 ### 4. 🗄️ Resilient Edge Database & Media Storage (D1 + R2)
 - **Cloudflare D1**: Persistent tables for `users`, `generations`, `telemetry_events`, and `error_logs`.

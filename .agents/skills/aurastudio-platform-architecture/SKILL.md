@@ -53,7 +53,7 @@ Whenever any service (Web Photo, Web Dance Video, or Telegram Bot) needs GPU com
 
 - **Feature Flag:** `TELEGRAM_ONLY_PAYMENTS: true` in `wrangler.jsonc` and `src/worker.js`.
 - **Pricing & Quotas:**
-  - 1 free photo/video per 24 hours.
+  - 5 free photos/videos per 24 hours.
   - Subsequent photos: **10 Telegram Stars** (deducted from `users.stars_balance`).
   - Subsequent dance videos: **40 Telegram Stars** (deducted from `users.stars_balance`).
   - Starter Pack: **250 Stars** (50 generations).

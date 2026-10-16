@@ -50,6 +50,7 @@ const MODAL_PHOTO_ENDPOINTS = [
   "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run"
 ];
 
+const DAILY_FREE_GENERATIONS_LIMIT = 5;
 
 const GLOBAL_PRESETS = {
   ultrahd_skin: "extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft studio lighting, 85mm f/1.4 lens, razor-sharp focus",
@@ -777,17 +778,29 @@ export default {
         const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first();
         const recentGens = await env.DB.prepare("SELECT * FROM generations WHERE user_id = ? ORDER BY created_at DESC LIMIT 12").bind(userId).all();
 
-        let hoursLeft = 0;
-        const lastGen = await env.DB.prepare(`
-          SELECT CAST((strftime('%s', 'now') - strftime('%s', created_at)) AS INTEGER) as seconds_ago
+        // Calculate 24-hour daily free usage
+        const dailyCountRow = await env.DB.prepare(`
+          SELECT COUNT(*) as count
           FROM generations 
-          WHERE user_id = ? AND status = 'SUCCESS'
-          ORDER BY created_at DESC 
-          LIMIT 1
+          WHERE user_id = ? AND status = 'SUCCESS' AND (strftime('%s', 'now') - strftime('%s', created_at)) < 86400
         `).bind(userId).first();
 
-        if (lastGen && lastGen.seconds_ago !== null && lastGen.seconds_ago < 86400) {
-          hoursLeft = Math.ceil((86400 - lastGen.seconds_ago) / 3600);
+        const freeUsedToday = (dailyCountRow && dailyCountRow.count) || 0;
+        const freeRemainingToday = Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - freeUsedToday);
+
+        let hoursLeft = 0;
+        if (freeUsedToday >= DAILY_FREE_GENERATIONS_LIMIT) {
+          const fifthGen = await env.DB.prepare(`
+            SELECT CAST((strftime('%s', 'now') - strftime('%s', created_at)) AS INTEGER) as seconds_ago
+            FROM generations
+            WHERE user_id = ? AND status = 'SUCCESS' AND (strftime('%s', 'now') - strftime('%s', created_at)) < 86400
+            ORDER BY created_at DESC
+            LIMIT 1 OFFSET ?
+          `).bind(userId, DAILY_FREE_GENERATIONS_LIMIT - 1).first();
+
+          if (fifthGen && fifthGen.seconds_ago !== null) {
+            hoursLeft = Math.max(1, Math.ceil((86400 - fifthGen.seconds_ago) / 3600));
+          }
         }
 
         const starsBalance = (u && u.stars_balance) || 0;
@@ -797,14 +810,28 @@ export default {
           status: "success",
           user: u || { id: userId, free_generations_used: 0, stars_balance: 0 },
           stars_balance: starsBalance,
+          daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
+          free_used_today: freeUsedToday,
+          free_remaining: freeRemainingToday,
           hours_left: hoursLeft,
-          can_generate: (hoursLeft === 0) || hasPaidAccess,
+          can_generate: (freeRemainingToday > 0) || hasPaidAccess,
           subscription: sub || null,
           history: (recentGens && recentGens.results) || []
         });
       }
 
-      return jsonResponse({ status: "success", user: { id: userId, free_generations_used: 0, stars_balance: 0 }, stars_balance: 0, subscription: null, history: [] });
+      return jsonResponse({
+        status: "success",
+        user: { id: userId, free_generations_used: 0, stars_balance: 0 },
+        stars_balance: 0,
+        daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
+        free_used_today: 0,
+        free_remaining: DAILY_FREE_GENERATIONS_LIMIT,
+        hours_left: 0,
+        can_generate: true,
+        subscription: null,
+        history: []
+      });
     }
 
     // =========================================================================
@@ -1012,37 +1039,47 @@ export default {
           if (!user_id || user_id === "anonymous" || user_id === "anonymous_web") {
             return jsonResponse({
               status: "auth_required",
-              message: "Please sign in with Google or Telegram to use your 1 Free Generation."
+              message: `Please sign in with Google or Telegram to use your ${DAILY_FREE_GENERATIONS_LIMIT} Free Daily Generations.`
             }, 401);
           }
 
-          // Check 24-hour daily quota & Telegram Stars balance in D1
+          // Check 24-hour daily quota (5 Free Generations / day) & Telegram Stars balance in D1
+          let dailyUsed = 0;
           if (env.DB) {
             const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user_id).first();
             const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user_id).first();
 
-            const lastGen = await env.DB.prepare(`
-              SELECT CAST((strftime('%s', 'now') - strftime('%s', created_at)) AS INTEGER) as seconds_ago
+            const dailyCountRow = await env.DB.prepare(`
+              SELECT COUNT(*) as count
               FROM generations 
-              WHERE user_id = ? AND status = 'SUCCESS'
-              ORDER BY created_at DESC 
-              LIMIT 1
+              WHERE user_id = ? AND status = 'SUCCESS' AND (strftime('%s', 'now') - strftime('%s', created_at)) < 86400
             `).bind(user_id).first();
 
-            if (lastGen && lastGen.seconds_ago !== null && lastGen.seconds_ago < 86400) {
+            dailyUsed = (dailyCountRow && dailyCountRow.count) || 0;
+
+            if (dailyUsed >= DAILY_FREE_GENERATIONS_LIMIT) {
               if (sub) {
                 // Active subscription - allowed
               } else if (u && (u.stars_balance || 0) >= 10) {
                 // Deduct 10 Telegram Stars from user balance
                 await env.DB.prepare("UPDATE users SET stars_balance = stars_balance - 10 WHERE id = ?").bind(user_id).run();
               } else {
-                const hoursLeft = Math.ceil((86400 - lastGen.seconds_ago) / 3600);
+                const fifthGen = await env.DB.prepare(`
+                  SELECT CAST((strftime('%s', 'now') - strftime('%s', created_at)) AS INTEGER) as seconds_ago
+                  FROM generations
+                  WHERE user_id = ? AND status = 'SUCCESS' AND (strftime('%s', 'now') - strftime('%s', created_at)) < 86400
+                  ORDER BY created_at DESC
+                  LIMIT 1 OFFSET ?
+                `).bind(user_id, DAILY_FREE_GENERATIONS_LIMIT - 1).first();
+
+                const hoursLeft = fifthGen ? Math.max(1, Math.ceil((86400 - fifthGen.seconds_ago) / 3600)) : 24;
                 return jsonResponse({
                   status: "daily_limit_reached",
+                  daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
                   hours_left: hoursLeft,
                   stars_balance: (u && u.stars_balance) || 0,
                   required_stars: 10,
-                  message: `Ваш щоденний безкоштовний ліміт вичерпано. Поповніть баланс Telegram Stars (⭐️ 10) або зачекайте ${hoursLeft} год.`
+                  message: `Ваш щоденний безкоштовний ліміт (${DAILY_FREE_GENERATIONS_LIMIT} генерацій) вичерпано. Поповніть баланс Telegram Stars (⭐️ 10) або зачекайте ${hoursLeft} год.`
                 }, 403);
               }
             }
@@ -1134,7 +1171,7 @@ export default {
 
           const origin = url.origin;
           const shareUrl = `${origin}/s/${shareToken}`;
-          const twitterText = encodeURIComponent("Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 1 free transformation daily:");
+          const twitterText = encodeURIComponent("Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:");
           const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${twitterText}&url=${encodeURIComponent(shareUrl)}`;
 
           return jsonResponse({
@@ -1144,7 +1181,9 @@ export default {
             share_url: shareUrl,
             twitter_intent_url: twitterIntentUrl,
             duration_seconds: parseFloat(dur),
-            result_base64: resultDataUri
+            result_base64: resultDataUri,
+            daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
+            free_remaining: Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsed + 1))
           });
         } catch (err) {
           logCriticalError(env, ctx, "modal_photo_gpu", err.message, null);
@@ -1171,7 +1210,7 @@ export default {
 
           const origin = url.origin;
           const shareUrl = `${origin}/s/${shareToken}`;
-          const twitterText = encodeURIComponent("Check out my AI transformation created with @AuraStudioAi! 🚀✨ Try 1 free transformation daily:");
+          const twitterText = encodeURIComponent("Check out my AI transformation created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:");
           const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${twitterText}&url=${encodeURIComponent(shareUrl)}`;
 
           return jsonResponse({
@@ -1237,13 +1276,13 @@ export default {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Transformation by AuraStudio — ${presetLabel}</title>
-    <meta name="description" content="Check out this AI transformation created with AuraStudio.AI! Try 1 free generation daily.">
+    <meta name="description" content="Check out this AI transformation created with AuraStudio.AI! Try 5 free generations daily.">
 
     <!-- Open Graph (Facebook / Discord / Telegram) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="${sharePageUrl}">
     <meta property="og:title" content="AI Transformation — AuraStudio.AI">
-    <meta property="og:description" content="Magazine-grade portraits, LinkedIn headshots, and luxury styles in 30s. Try 1 free!">
+    <meta property="og:description" content="Magazine-grade portraits, LinkedIn headshots, and luxury styles in 30s. Try 5 free daily!">
     <meta property="og:image" content="${imageUrl}">
     <meta property="og:image:width" content="1024">
     <meta property="og:image:height" content="1024">
@@ -1252,7 +1291,7 @@ export default {
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@AuraStudioAi">
     <meta name="twitter:title" content="AI Transformation with AuraStudio.AI">
-    <meta name="twitter:description" content="Created in 30s with Qwen 2.5 DiT. Try 1 free transformation daily!">
+    <meta name="twitter:description" content="Created in 30s with Qwen 2.5 DiT. Try 5 free transformations daily!">
     <meta name="twitter:image" content="${imageUrl}">
 
     <!-- Tailwind CSS CDN -->
@@ -1268,7 +1307,7 @@ export default {
             <span>AuraStudio<span class="text-purple-400">.AI</span></span>
         </a>
         <a href="/" class="px-4 py-2 text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white rounded-xl shadow-lg shadow-purple-600/20 transition">
-            Try 1 Free
+            Try 5 Free
         </a>
     </header>
 
@@ -1286,7 +1325,7 @@ export default {
             <a href="/" class="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-2xl shadow-xl shadow-purple-600/30 flex items-center justify-center gap-2 text-base transition">
                 <span>⚡ Transform Your Own Photo Free</span>
             </a>
-            <p class="text-xs text-gray-400">No credit card required • 1 Free generation daily</p>
+            <p class="text-xs text-gray-400">No credit card required • 5 Free generations daily</p>
         </div>
     </main>
 
@@ -1774,6 +1813,46 @@ export default {
             const photoData = await getTgUserPhotoBase64(env, botToken, userId, explicitFileId);
 
             if (photoData && photoData.base64) {
+              // Check daily quota for Telegram user
+              let dailyUsedTg = 0;
+              if (env.DB) {
+                const isAdmin = isUserAdmin(userId, user.username, null, env);
+                if (!isAdmin) {
+                  const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first();
+                  const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first();
+                  const dailyCountRow = await env.DB.prepare(`
+                    SELECT COUNT(*) as count
+                    FROM generations 
+                    WHERE user_id = ? AND status = 'SUCCESS' AND (strftime('%s', 'now') - strftime('%s', created_at)) < 86400
+                  `).bind(userId).first();
+
+                  dailyUsedTg = (dailyCountRow && dailyCountRow.count) || 0;
+
+                  if (dailyUsedTg >= DAILY_FREE_GENERATIONS_LIMIT) {
+                    if (sub) {
+                      // Subscription active
+                    } else if (u && (u.stars_balance || 0) >= (isUltraHd ? 20 : 10)) {
+                      await env.DB.prepare("UPDATE users SET stars_balance = stars_balance - ? WHERE id = ?").bind(isUltraHd ? 20 : 10, userId).run();
+                    } else {
+                      await sendTgMessage(chatId, `⛔ *Щоденний безкоштовний ліміт вичерпано!*\n\nВи використали всі *${DAILY_FREE_GENERATIONS_LIMIT}* безкоштовних генерацій на сьогодні.\n\nПоповніть баланс Telegram Stars або підключіть тариф для продовження:`, {
+                        reply_markup: {
+                          inline_keyboard: [
+                            [
+                              { text: "⭐️ Купити Starter (250 Stars)", callback_data: "buy_starter" },
+                              { text: "⭐️ Купити Unlimited (500 Stars)", callback_data: "buy_unlimited" }
+                            ],
+                            [
+                              { text: "🌐 Відкрити Web Studio", url: "https://aurastudio-ai.memory1024.workers.dev" }
+                            ]
+                          ]
+                        }
+                      });
+                      return jsonResponse({ ok: true });
+                    }
+                  }
+                }
+              }
+
               const targetTaskId = `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
               await setTgSession(env, userId, { currentTaskId: targetTaskId });
               const styleLabel = isUltraHd ? "💎 ULTRA-HD CINEMA SKIN (4K MACRO)" : presetKey.toUpperCase();
@@ -1821,7 +1900,10 @@ export default {
                       status: "SUCCESS"
                     });
 
-                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*\nДвигун: Qwen 2.5 DiT 20B`, {
+                    const freeTgLeft = Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsedTg + 1));
+                    const quotaBadge = freeTgLeft > 0 ? `\n🎁 Залишилось безкоштовних: *${freeTgLeft} з ${DAILY_FREE_GENERATIONS_LIMIT}* на сьогодні` : `\n⭐️ Безкоштовний ліміт вичерпано (${DAILY_FREE_GENERATIONS_LIMIT}/${DAILY_FREE_GENERATIONS_LIMIT})`;
+
+                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nСтиль: *${styleLabel}*${quotaBadge}\nДвигун: Qwen 2.5 DiT 20B`, {
                       reply_markup: {
                         inline_keyboard: [
                           [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
