@@ -365,6 +365,8 @@
                     <span>👱‍♀️</span> <span>/blonde</span>
                 </button>
             </div>
+        </div>
+
         <!-- Live Loading State (Active Generation & Queue HUD) -->
         <div id="generationLoadingBox" class="hidden w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 text-center space-y-6 border border-slate-200/90 shadow-xl shadow-slate-200/50">
             <!-- Badges Bar (Queue position & Elapsed Timer) -->
@@ -469,6 +471,7 @@
                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-indigo-600"></i>
                     <span>Try Another Style</span>
                 </button>
+            </div>
         </div>
 
         <!-- Studio Stream & Activity Feed (Chat Mode with Past Generations) -->
@@ -1387,7 +1390,7 @@
                     if (pText) pText.innerText = '100%';
                     setTimeout(() => {
                         document.getElementById('generationLoadingBox').classList.add('hidden');
-                        showResult(data);
+                        showResult(data, inputPhotoBase64);
                         refreshStreamHistory();
                     }, 400);
                 } else if (data.status === 'daily_limit_reached') {
@@ -1416,15 +1419,15 @@
             }
         }
 
-        function showResult(data) {
-            const hasInput = !!attachedFileBase64;
+        function showResult(data, inputPhoto) {
+            const hasInput = !!inputPhoto || !!attachedFileBase64;
             const inputCol = document.getElementById('resultInputCol');
             const resultGrid = document.getElementById('resultGrid');
 
             if (inputCol) {
                 if (hasInput) {
                     inputCol.classList.remove('hidden');
-                    document.getElementById('resultInputImg').src = attachedFileBase64;
+                    document.getElementById('resultInputImg').src = inputPhoto || attachedFileBase64;
                     if (resultGrid) {
                         resultGrid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-4 items-start';
                     }
