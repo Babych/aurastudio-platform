@@ -1040,6 +1040,35 @@ export default {
     }
 
     // =========================================================================
+    // 7B. QUEUE STATUS: Live GPU Cluster Load & Queue Tracking (Midjourney / Leonardo style)
+    // =========================================================================
+    if (url.pathname === "/api/queue-status" || url.pathname === "/functions/api/queue-status") {
+      let activeJobs = 0;
+      if (env.DB) {
+        try {
+          const row = await env.DB.prepare(`
+            SELECT COUNT(*) as count 
+            FROM generations 
+            WHERE status IN ('PROCESSING', 'PENDING') 
+              AND (strftime('%s', 'now') - strftime('%s', created_at)) < 300
+          `).first();
+          activeJobs = (row && row.count) || 0;
+        } catch(e) {
+          console.error("Queue status query error:", e);
+        }
+      }
+      const position = activeJobs + 1;
+      const etaSeconds = Math.max(22, position * 22);
+      return jsonResponse({
+        status: "success",
+        active_jobs: activeJobs,
+        queue_position: position,
+        estimated_seconds: etaSeconds,
+        cluster: "Modal Nvidia L40S 48GB"
+      });
+    }
+
+    // =========================================================================
     // 8. GENERATE: Image Generation (Protected by Auth & Quota)
     // =========================================================================
     if (url.pathname === "/api/generate" || url.pathname === "/functions/api/generate") {

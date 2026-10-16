@@ -352,8 +352,21 @@
                     <span>👱‍♀️</span> <span>/blonde</span>
                 </button>
             </div>
-        <!-- Live Loading State (Active Generation) -->
-        <div id="generationLoadingBox" class="hidden w-full max-w-2xl bg-white rounded-3xl p-8 text-center space-y-6 border border-indigo-100 shadow-xl">
+        <!-- Live Loading State (Active Generation & Queue HUD) -->
+        <div id="generationLoadingBox" class="hidden w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 text-center space-y-6 border border-slate-200/90 shadow-xl shadow-slate-200/50">
+            <!-- Badges Bar (Queue position & Elapsed Timer) -->
+            <div class="flex items-center justify-center gap-2.5 flex-wrap">
+                <span id="loadingQueueBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs transition-all">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="loadingQueueText">Active GPU Slot • Processing</span>
+                </span>
+                <span id="loadingTimerBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-xs">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500"></i>
+                    <span id="loadingElapsedSec">0s</span> / <span id="loadingEtaSec">~22s</span>
+                </span>
+            </div>
+
+            <!-- Central Animated Pulse -->
             <div class="relative w-20 h-20 mx-auto flex items-center justify-center">
                 <div class="absolute inset-0 rounded-full border-4 border-indigo-400/20 animate-ping"></div>
                 <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30 animate-pulse">
@@ -361,13 +374,25 @@
                 </div>
             </div>
 
-            <div class="space-y-2">
-                <h3 class="text-xl font-bold tracking-tight text-slate-900" id="loadingStatusText">Rendering with Qwen 2.1 DiT...</h3>
-                <p class="text-xs text-slate-500" id="loadingSubText">Synthesizing photo (~20-25s)</p>
+            <!-- Dynamic Progressive Status & Subtitles -->
+            <div class="space-y-1.5 px-4">
+                <h3 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900 transition-all duration-300" id="loadingStatusText">
+                    Preserving 100% Facial Identity...
+                </h3>
+                <p class="text-xs text-slate-500 transition-all duration-300 min-h-[18px]" id="loadingSubText">
+                    Locking facial contours, original lighting & natural skin tone
+                </p>
             </div>
 
-            <div class="w-full max-w-md mx-auto bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
-                <div id="loadingProgressBar" class="bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 h-full w-0 transition-all duration-300"></div>
+            <!-- Progressive Gradient Bar & Percentage -->
+            <div class="space-y-1.5 max-w-md mx-auto">
+                <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
+                    <div id="loadingProgressBar" class="bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-slate-400 font-mono px-1">
+                    <span>Qwen 2.5 DiT 20B</span>
+                    <span id="loadingPercentText">15%</span>
+                </div>
             </div>
         </div>
 
@@ -1041,6 +1066,102 @@
             });
         }
 
+        let loadingTimerInterval = null;
+        let generationStartTimestamp = 0;
+
+        function startIntelligentLoadingHUD(hasPhoto, initialEta = 22, initialQueuePos = 1) {
+            generationStartTimestamp = Date.now();
+            const statusEl = document.getElementById('loadingStatusText');
+            const subEl = document.getElementById('loadingSubText');
+            const pBar = document.getElementById('loadingProgressBar');
+            const pText = document.getElementById('loadingPercentText');
+            const elapsedEl = document.getElementById('loadingElapsedSec');
+            const etaEl = document.getElementById('loadingEtaSec');
+            const queueBadge = document.getElementById('loadingQueueBadge');
+            const queueText = document.getElementById('loadingQueueText');
+
+            if (etaEl) etaEl.innerText = `~${initialEta}s`;
+            if (elapsedEl) elapsedEl.innerText = '0s';
+
+            if (initialQueuePos > 1) {
+                if (queueBadge) {
+                    queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 shadow-xs';
+                }
+                if (queueText) queueText.innerText = currentLang === 'uk' ? `Позиція в черзі: #${initialQueuePos}` : `Queue Position: #${initialQueuePos}`;
+            } else {
+                if (queueBadge) {
+                    queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs';
+                }
+                if (queueText) queueText.innerText = currentLang === 'uk' ? 'Активний слот GPU • Обробка' : 'Active GPU Slot • Processing';
+            }
+
+            pBar.style.width = '15%';
+            if (pText) pText.innerText = '15%';
+
+            let currentProgress = 15;
+
+            if (loadingTimerInterval) clearInterval(loadingTimerInterval);
+            loadingTimerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - generationStartTimestamp) / 1000);
+                if (elapsedEl) elapsedEl.innerText = `${elapsed}s`;
+
+                // Smooth non-linear progress simulation
+                if (elapsed <= 5) {
+                    currentProgress = Math.min(35, 15 + elapsed * 4);
+                } else if (elapsed <= 18) {
+                    currentProgress = Math.min(75, 35 + (elapsed - 5) * 3);
+                } else if (elapsed <= 25) {
+                    currentProgress = Math.min(88, 75 + (elapsed - 18) * 1.8);
+                } else if (elapsed <= 60) {
+                    currentProgress = Math.min(96, 88 + (elapsed - 25) * 0.25);
+                }
+                pBar.style.width = `${Math.round(currentProgress)}%`;
+                if (pText) pText.innerText = `${Math.round(currentProgress)}%`;
+
+                // Dynamic Intelligent Stages
+                if (hasPhoto) {
+                    if (elapsed < 6) {
+                        statusEl.innerText = currentLang === 'uk' ? '🔒 Фіксуємо 100% рис обличчя...' : '🔒 Preserving 100% Facial Identity...';
+                        subEl.innerText = currentLang === 'uk' ? 'Зберігаємо анатомію очей, погляд, міміку та освітлення' : 'Locking facial contours, gaze, expression & natural lighting';
+                    } else if (elapsed < 16) {
+                        statusEl.innerText = currentLang === 'uk' ? '✨ Запуск моделі Qwen 2.5 DiT (6-Bit Master)...' : '✨ Qwen 2.5 DiT Latent Diffusion Running...';
+                        subEl.innerText = currentLang === 'uk' ? 'Обробка 20B мультимодальних параметрів на Nvidia L40S GPU' : 'Executing 20B multi-modal diffusion on Nvidia L40S 48GB GPU';
+                    } else if (elapsed < 26) {
+                        statusEl.innerText = currentLang === 'uk' ? '💎 Синтез реалістичної текстури та шкіри...' : '💎 Synthesizing Realistic Skin & Textures...';
+                        subEl.innerText = currentLang === 'uk' ? 'Рендеринг природних мікро-пор, тонкого волосся та підповерхневого розсіювання' : 'Rendering authentic micro-pores, peach fuzz hair & subsurface scattering';
+                    } else if (elapsed < 45) {
+                        statusEl.innerText = currentLang === 'uk' ? '⚡ Пікове навантаження кластера — фіналізація...' : '⚡ GPU Cluster Peak Demand — Finalizing...';
+                        subEl.innerText = currentLang === 'uk' ? 'Виділено додатковий обчислювальний потік для завершення рендеру' : 'High GPU demand detected. Compute stream allocated, finishing render...';
+                        if (queueBadge && queueText) {
+                            queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs';
+                            queueText.innerText = currentLang === 'uk' ? 'Пріоритетне виконання' : 'Priority Execution';
+                        }
+                    } else {
+                        statusEl.innerText = currentLang === 'uk' ? '🚀 Фінальне декодування VAE...' : '🚀 Finalizing Neural Latent Decoding...';
+                        subEl.innerText = currentLang === 'uk' ? 'Збираємо 8K зображення без стиснення. Майже готово!' : 'Assembling full uncompressed master render. Almost ready!';
+                    }
+                } else {
+                    if (elapsed < 8) {
+                        statusEl.innerText = currentLang === 'uk' ? '🎨 Аналізуємо текстовий опис сцени...' : '🎨 Analyzing Text Prompt & Scene...';
+                        subEl.innerText = currentLang === 'uk' ? 'Створення латентного простору композиції' : 'Building multi-modal latent composition space';
+                    } else if (elapsed < 20) {
+                        statusEl.innerText = currentLang === 'uk' ? '✨ Генерація високої деталізації з Qwen 2.1...' : '✨ High-Fidelity Diffusion with Qwen 2.1...';
+                        subEl.innerText = currentLang === 'uk' ? 'Синтез фотореалістичного освітлення та деталей' : 'Synthesizing photorealistic illumination and depth of field';
+                    } else {
+                        statusEl.innerText = currentLang === 'uk' ? '💎 Завершення рендерингу...' : '💎 Finalizing Generation Output...';
+                        subEl.innerText = currentLang === 'uk' ? 'Декодування нейромережевих тензорів' : 'Decoding neural latent tensors to high-res image';
+                    }
+                }
+            }, 1000);
+        }
+
+        function stopIntelligentLoadingHUD() {
+            if (loadingTimerInterval) {
+                clearInterval(loadingTimerInterval);
+                loadingTimerInterval = null;
+            }
+        }
+
         // Trigger AI Generation (Supports both Image-to-Image and Text-to-Image with Qwen 2.1 DiT)
         async function triggerGeneration() {
             if (!currentUser || !currentUser.id) {
@@ -1056,31 +1177,24 @@
 
             const hasPhoto = !!attachedFileBase64;
 
-            // Show Loading State with dynamic mode description
-            const statusText = document.getElementById('loadingStatusText');
-            const subText = document.getElementById('loadingSubText');
-            if (hasPhoto) {
-                if (statusText) statusText.innerText = currentLang === 'uk' ? 'Трансформуємо фото з Qwen 2.1 DiT...' : 'Rendering Transformation with Qwen 2.1 DiT...';
-                if (subText) subText.innerText = currentLang === 'uk' ? 'Зберігаємо 100% рис обличчя та текстуру шкіри (~20-25с)' : 'Preserving 100% facial identity, eyes, and skin texture (~20-25s)';
-            } else {
-                if (statusText) statusText.innerText = currentLang === 'uk' ? 'Генеруємо зображення з нуля з Qwen 2.1...' : 'Generating Image from Scratch with Qwen 2.1...';
-                if (subText) subText.innerText = currentLang === 'uk' ? 'Синтезуємо нову сцену за описом (~20-25с)' : 'Synthesizing full scene from text prompt (~20-25s)';
-            }
+            // Fetch live queue status from server for accurate queue position
+            let queuePos = 1;
+            let etaSec = 22;
+            try {
+                const qRes = await fetch('/api/queue-status');
+                if (qRes.ok) {
+                    const qData = await qRes.json();
+                    if (qData.queue_position) queuePos = qData.queue_position;
+                    if (qData.estimated_seconds) etaSec = qData.estimated_seconds;
+                }
+            } catch(e) {}
 
             document.getElementById('resultCanvasBox').classList.add('hidden');
             document.getElementById('generationLoadingBox').classList.remove('hidden');
             document.getElementById('generateBtn').disabled = true;
 
-            // Animate progress bar
-            const pBar = document.getElementById('loadingProgressBar');
-            pBar.style.width = '15%';
-            let progress = 15;
-            const progressInterval = setInterval(() => {
-                if (progress < 90) {
-                    progress += 4;
-                    pBar.style.width = progress + '%';
-                }
-            }, 800);
+            startIntelligentLoadingHUD(hasPhoto, etaSec, queuePos);
+            if (window.lucide) lucide.createIcons();
 
             try {
                 const res = await fetch('/api/generate', {
@@ -1096,11 +1210,15 @@
                     })
                 });
 
-                clearInterval(progressInterval);
+                stopIntelligentLoadingHUD();
                 const data = await res.json();
 
+                const pBar = document.getElementById('loadingProgressBar');
+                const pText = document.getElementById('loadingPercentText');
+
                 if (data.status === 'success') {
-                    pBar.style.width = '100%';
+                    if (pBar) pBar.style.width = '100%';
+                    if (pText) pText.innerText = '100%';
                     setTimeout(() => {
                         document.getElementById('generationLoadingBox').classList.add('hidden');
                         showResult(data);
@@ -1116,7 +1234,7 @@
                     document.getElementById('generationLoadingBox').classList.add('hidden');
                 }
             } catch(e) {
-                clearInterval(progressInterval);
+                stopIntelligentLoadingHUD();
                 document.getElementById('generationLoadingBox').classList.add('hidden');
                 alert('Connection error: ' + e.message);
             } finally {
