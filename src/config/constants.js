@@ -13,9 +13,8 @@ export const DEFAULT_BLANK_CANVAS_BASE64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0J
 
 // Modal Multi-Account Failover Endpoints (Auto load-balancing across accounts)
 export const MODAL_PHOTO_ENDPOINTS = [
-  "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
-  "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run",
-  "https://dmytrobbch--qwen-image-edit-service-qweneditor-api-edit.modal.run"
+  "https://dmytrobbch--qwen-image-edit-service-qweneditor-api-edit.modal.run",
+  "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run"
 ];
 
 export const MODAL_VIDEO_ENDPOINTS = [
