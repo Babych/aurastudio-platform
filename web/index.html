@@ -370,7 +370,7 @@
             <!-- Badges Bar (Queue position & Elapsed Timer) -->
             <div class="flex items-center justify-center gap-2.5 flex-wrap">
                 <span id="loadingQueueBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs transition-all">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="loadingQueueDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
                     <span id="loadingQueueText">Active GPU Slot • Processing</span>
                 </span>
                 <span id="loadingTimerBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-xs">
@@ -1124,6 +1124,7 @@
             const elapsedEl = document.getElementById('loadingElapsedSec');
             const etaEl = document.getElementById('loadingEtaSec');
             const queueBadge = document.getElementById('loadingQueueBadge');
+            const queueDot = document.getElementById('loadingQueueDot');
             const queueText = document.getElementById('loadingQueueText');
 
             if (etaEl) etaEl.innerText = `~${initialEta}s`;
@@ -1133,19 +1134,22 @@
                 if (queueBadge) {
                     queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200 shadow-xs';
                 }
+                if (queueDot) queueDot.className = 'w-2 h-2 rounded-full bg-sky-400';
                 if (queueText) queueText.innerText = currentLang === 'uk' ? '⚡ Прогрів GPU кластера (~75с)' : '⚡ GPU Cold Start (~75s)';
                 if (statusEl) statusEl.innerText = currentLang === 'uk' ? '⚡ Пробуджуємо Nvidia L40S GPU...' : '⚡ Waking up Nvidia L40S GPU...';
                 if (subEl) subEl.innerText = currentLang === 'uk' ? 'Перший запуск після простою: завантажуємо 20B модель у VRAM. Наступні — 22с!' : 'First run after idle: loading 20B model weights into VRAM. Subsequent runs take 22s!';
             } else if (initialQueuePos > 1) {
                 if (queueBadge) {
-                    queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 shadow-xs';
+                    queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 shadow-xs';
                 }
+                if (queueDot) queueDot.className = 'w-2 h-2 rounded-full bg-indigo-500';
                 if (queueText) queueText.innerText = currentLang === 'uk' ? `Позиція в черзі: #${initialQueuePos}` : `Queue Position: #${initialQueuePos}`;
             } else {
                 if (queueBadge) {
                     queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs';
                 }
-                if (queueText) queueText.innerText = currentLang === 'uk' ? '🟢 Гарячий GPU • Обробка' : '🟢 Hot GPU Slot • Processing';
+                if (queueDot) queueDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+                if (queueText) queueText.innerText = currentLang === 'uk' ? '🟢 Гарячий GPU • Обробка' : '🟢 Hot GPU Slot • Ready (~22s)';
             }
 
             pBar.style.width = '15%';
