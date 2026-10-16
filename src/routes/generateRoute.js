@@ -56,18 +56,19 @@ export async function handleGenerate(request, env, ctx, url) {
     const { image_base64, prompt, preset_id, user_id, user_email, user_name, task_id } = body;
     currentTaskId = task_id || null;
 
-    // Guest / Anonymous User handling: Allow 1 Free Trial Generation without login!
+    // Guest / Anonymous User handling: Allow strictly 1 Free Trial Generation per IP without login!
     const isGuest = !user_id || user_id === "anonymous" || user_id === "anonymous_web" || user_id.startsWith("guest_");
-    const clientIp = request.headers.get("CF-Connecting-IP") || request.headers.get("x-real-ip") || "unknown_ip";
-    const effectiveUserId = isGuest ? (user_id && user_id.startsWith("guest_") ? user_id : `guest_${clientIp.replace(/[^a-zA-Z0-9]/g, "_")}`) : user_id;
+    const rawIp = request.headers.get("CF-Connecting-IP") || request.headers.get("x-real-ip") || "unknown_ip";
+    const cleanIpTag = rawIp.replace(/[^a-zA-Z0-9]/g, "_");
+    const effectiveUserId = isGuest ? `guest_ip_${cleanIpTag}` : user_id;
 
     if (isGuest && env.DB) {
-      // Check if this guest (or IP) has already used their 1 free generation without login
+      // Check if this IP address has already used its 1 free generation without login
       const guestGenCount = await env.DB.prepare(`
         SELECT COUNT(*) as count 
         FROM generations 
-        WHERE (user_id = ? OR user_id LIKE ?) AND status = 'SUCCESS'
-      `).bind(effectiveUserId, `%${clientIp.replace(/[^a-zA-Z0-9]/g, "_")}%`).first();
+        WHERE (user_id = ? OR user_id LIKE ? OR user_id LIKE ?) AND status = 'SUCCESS'
+      `).bind(effectiveUserId, `guest_ip_${cleanIpTag}`, `%${cleanIpTag}%`).first();
 
       const guestUsed = (guestGenCount && guestGenCount.count) || 0;
       if (guestUsed >= 1) {

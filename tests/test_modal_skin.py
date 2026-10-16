@@ -13,7 +13,7 @@ import urllib.request
 import urllib.error
 
 MODAL_ENDPOINTS = [
-    "https://memory1024--qwen-image-edit-fp8-service-qweneditorfp8-api-edit.modal.run",
+    "https://dmytrobbch--qwen-image-edit-service-qweneditor-api-edit.modal.run",
     "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run"
 ]
 

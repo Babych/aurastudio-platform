@@ -219,21 +219,22 @@ export async function handleUserProfile(request, env, url) {
     return jsonResponse({ status: "error", message: "Missing user_id" }, 400);
   }
 
-  // Handle Guest Profile
-  if (userId.startsWith("guest_")) {
+  // Handle Guest Profile (Strictly Bound by Client IP)
+  if (userId.startsWith("guest_") || userId === "anonymous" || userId === "anonymous_web") {
     let guestUsed = 0;
     let recentGens = [];
     if (env.DB) {
-      const clientIp = request.headers.get("CF-Connecting-IP") || request.headers.get("x-real-ip") || "";
-      const ipPattern = clientIp ? `%${clientIp.replace(/[^a-zA-Z0-9]/g, "_")}%` : userId;
+      const rawIp = request.headers.get("CF-Connecting-IP") || request.headers.get("x-real-ip") || "unknown_ip";
+      const cleanIpTag = rawIp.replace(/[^a-zA-Z0-9]/g, "_");
+      const ipUserId = `guest_ip_${cleanIpTag}`;
       const countRow = await env.DB.prepare(`
         SELECT COUNT(*) as count 
         FROM generations 
-        WHERE (user_id = ? OR user_id LIKE ?) AND status = 'SUCCESS'
-      `).bind(userId, ipPattern).first();
+        WHERE (user_id = ? OR user_id LIKE ? OR user_id LIKE ?) AND status = 'SUCCESS'
+      `).bind(ipUserId, `guest_ip_${cleanIpTag}`, `%${cleanIpTag}%`).first();
       guestUsed = (countRow && countRow.count) || 0;
 
-      const gens = await env.DB.prepare("SELECT * FROM generations WHERE user_id = ? ORDER BY created_at DESC LIMIT 5").bind(userId).all();
+      const gens = await env.DB.prepare("SELECT * FROM generations WHERE user_id = ? OR user_id = ? ORDER BY created_at DESC LIMIT 5").bind(userId, ipUserId).all();
       recentGens = (gens && gens.results) || [];
     }
     const guestRemaining = Math.max(0, 1 - guestUsed);
