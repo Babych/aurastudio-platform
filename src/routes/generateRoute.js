@@ -56,12 +56,26 @@ export async function handleGenerate(request, env, ctx, url) {
     const { image_base64, prompt, preset_id, user_id, user_email, user_name, task_id } = body;
     currentTaskId = task_id || null;
 
-    // Block anonymous generation (Anti-Bot Security)
-    if (!user_id || user_id === "anonymous" || user_id === "anonymous_web") {
-      return jsonResponse({
-        status: "auth_required",
-        message: `Please sign in with Google or Telegram to use your ${DAILY_FREE_GENERATIONS_LIMIT} Free Daily Generations.`
-      }, 401);
+    // Guest / Anonymous User handling: Allow 1 Free Trial Generation without login!
+    const isGuest = !user_id || user_id === "anonymous" || user_id === "anonymous_web" || user_id.startsWith("guest_");
+    const clientIp = request.headers.get("CF-Connecting-IP") || request.headers.get("x-real-ip") || "unknown_ip";
+    const effectiveUserId = isGuest ? (user_id && user_id.startsWith("guest_") ? user_id : `guest_${clientIp.replace(/[^a-zA-Z0-9]/g, "_")}`) : user_id;
+
+    if (isGuest && env.DB) {
+      // Check if this guest (or IP) has already used their 1 free generation without login
+      const guestGenCount = await env.DB.prepare(`
+        SELECT COUNT(*) as count 
+        FROM generations 
+        WHERE (user_id = ? OR user_id LIKE ?) AND status = 'SUCCESS'
+      `).bind(effectiveUserId, `%${clientIp.replace(/[^a-zA-Z0-9]/g, "_")}%`).first();
+
+      const guestUsed = (guestGenCount && guestGenCount.count) || 0;
+      if (guestUsed >= 1) {
+        return jsonResponse({
+          status: "auth_required",
+          message: `Ви вже використали 1 пробну генерацію без входу. Будь ласка, увійдіть через Google або Telegram, щоб розблокувати 5 щоденних безкоштовних генерацій!`
+        }, 401);
+      }
     }
 
     // Check 24-hour daily quota & Telegram Stars balance in D1 (Admins exempt)
@@ -143,7 +157,7 @@ export async function handleGenerate(request, env, ctx, url) {
           ON CONFLICT(id) DO UPDATE SET status = 'PROCESSING'
         `).bind(
           taskId,
-          user_id,
+          effectiveUserId,
           preset_id || (isTextToImage ? "text_to_image" : "custom"),
           prompt.slice(0, 500),
           inThumbEarly,
@@ -203,7 +217,7 @@ export async function handleGenerate(request, env, ctx, url) {
               duration_seconds = excluded.duration_seconds
           `).bind(
             taskId,
-            user_id,
+            effectiveUserId,
             preset_id || (isTextToImage ? "text_to_image" : "custom"),
             prompt.slice(0, 500),
             inThumb,
@@ -216,7 +230,7 @@ export async function handleGenerate(request, env, ctx, url) {
             INSERT INTO telemetry_events (event_type, source, user_id, duration_seconds, usd_amount, details)
             VALUES ('GENERATION_SUCCESS', 'web', ?, ?, 0.0, ?)
           `).bind(
-            user_id,
+            effectiveUserId,
             parseFloat(dur),
             JSON.stringify({ preset: preset_id, prompt: prompt.slice(0, 100), share_token: shareToken })
           ).run();

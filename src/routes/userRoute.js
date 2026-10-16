@@ -219,6 +219,40 @@ export async function handleUserProfile(request, env, url) {
     return jsonResponse({ status: "error", message: "Missing user_id" }, 400);
   }
 
+  // Handle Guest Profile
+  if (userId.startsWith("guest_")) {
+    let guestUsed = 0;
+    let recentGens = [];
+    if (env.DB) {
+      const clientIp = request.headers.get("CF-Connecting-IP") || request.headers.get("x-real-ip") || "";
+      const ipPattern = clientIp ? `%${clientIp.replace(/[^a-zA-Z0-9]/g, "_")}%` : userId;
+      const countRow = await env.DB.prepare(`
+        SELECT COUNT(*) as count 
+        FROM generations 
+        WHERE (user_id = ? OR user_id LIKE ?) AND status = 'SUCCESS'
+      `).bind(userId, ipPattern).first();
+      guestUsed = (countRow && countRow.count) || 0;
+
+      const gens = await env.DB.prepare("SELECT * FROM generations WHERE user_id = ? ORDER BY created_at DESC LIMIT 5").bind(userId).all();
+      recentGens = (gens && gens.results) || [];
+    }
+    const guestRemaining = Math.max(0, 1 - guestUsed);
+    return jsonResponse({
+      status: "success",
+      user: { id: userId, name: "Guest User", free_generations_used: guestUsed, is_guest: true },
+      is_admin: false,
+      is_guest: true,
+      stars_balance: 0,
+      daily_limit: 1,
+      free_used_today: guestUsed,
+      free_remaining: guestRemaining,
+      hours_left: 0,
+      can_generate: guestRemaining > 0,
+      subscription: null,
+      history: recentGens
+    });
+  }
+
   if (env.DB) {
     const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first();
     const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first();

@@ -759,6 +759,14 @@
 
         // App State
         let currentUser = JSON.parse(localStorage.getItem('aurastudio_user') || 'null');
+        function getGuestUserId() {
+            let gid = localStorage.getItem('aura_guest_id');
+            if (!gid) {
+                gid = 'guest_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+                localStorage.setItem('aura_guest_id', gid);
+            }
+            return gid;
+        }
         let currentStudioMode = 'photo';
         let currentLang = 'en';
         let attachedFileBase64 = null;
@@ -943,6 +951,26 @@
                     starsBadge.classList.add('hidden');
                     starsBadge.classList.remove('flex');
                 }
+                const guestId = getGuestUserId();
+                fetch(`/api/user/profile?user_id=${encodeURIComponent(guestId)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        const hint = document.getElementById('promptCounterHint');
+                        if (hint) {
+                            if (data.free_remaining > 0) {
+                                hint.innerText = currentLang === 'uk' ? '1 Безкоштовна проба' : '1 Free Trial';
+                            } else {
+                                hint.innerText = currentLang === 'uk' ? 'Увійдіть для 5/день' : 'Sign In for 5 Free';
+                            }
+                        }
+                        if (data.history && data.history.length > 0) {
+                            cachedUserHistory = data.history;
+                            renderStreamHistory(data.history);
+                        }
+                    }).catch(() => {
+                        const hint = document.getElementById('promptCounterHint');
+                        if (hint) hint.innerText = currentLang === 'uk' ? '1 Безкоштовна проба' : '1 Free Trial';
+                    });
             }
         }
 
@@ -1284,11 +1312,6 @@
 
         // Trigger AI Generation (Supports both Image-to-Image and Text-to-Image with Qwen 2.1 DiT)
         async function triggerGeneration() {
-            if (!currentUser || !currentUser.id) {
-                openAuthModal();
-                return;
-            }
-
             const promptInput = document.getElementById('mainPromptInput');
             const prompt = (promptInput ? promptInput.value : '').trim();
             if (!prompt) {
@@ -1357,6 +1380,7 @@
             if (window.lucide) lucide.createIcons();
 
             try {
+                const effectiveUserId = (currentUser && currentUser.id) ? currentUser.id : getGuestUserId();
                 const res = await fetch('/api/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1365,9 +1389,9 @@
                         image_base64: inputPhotoBase64 || null,
                         prompt: prompt,
                         preset_id: selectedPresetId || (hasPhoto ? 'custom' : 'text_to_image'),
-                        user_id: currentUser.id,
-                        user_email: currentUser.email,
-                        user_name: currentUser.name
+                        user_id: effectiveUserId,
+                        user_email: currentUser ? currentUser.email : null,
+                        user_name: currentUser ? currentUser.name : 'Guest User'
                     })
                 });
 
@@ -1514,14 +1538,22 @@
         }
 
         function refreshStreamHistory() {
-            if (!currentUser || !currentUser.id) return;
-            fetch(`/api/user/profile?user_id=${encodeURIComponent(currentUser.id)}`)
+            const uid = (currentUser && currentUser.id) ? currentUser.id : getGuestUserId();
+            fetch(`/api/user/profile?user_id=${encodeURIComponent(uid)}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.status === 'success' && data.history) {
                         cachedUserHistory = data.history;
                         renderStreamHistory(data.history);
-                        renderUserModalHistory(data.history);
+                        if (currentUser) renderUserModalHistory(data.history);
+                    }
+                    const hint = document.getElementById('promptCounterHint');
+                    if (hint && !currentUser) {
+                        if (data.free_remaining > 0) {
+                            hint.innerText = currentLang === 'uk' ? '1 Безкоштовна проба' : '1 Free Trial';
+                        } else {
+                            hint.innerText = currentLang === 'uk' ? 'Увійдіть для 5/день' : 'Sign In for 5 Free';
+                        }
                     }
                 }).catch(() => {});
         }
