@@ -417,6 +417,11 @@
                         <span>Download HD</span>
                     </a>
 
+                    <button id="copyShareLinkBtn" onclick="copyCurrentShareLink()" class="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm" title="Share via Link">
+                        <i data-lucide="link" class="w-3.5 h-3.5 text-indigo-600"></i>
+                        <span id="copyShareLinkText">Copy Link</span>
+                    </button>
+
                     <a id="shareTwitterBtn" href="#" target="_blank" class="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
                         <i data-lucide="twitter" class="w-3.5 h-3.5 text-cyan-600"></i>
                         <span>Share on X</span>
@@ -1159,8 +1164,27 @@
                 }
             }
 
+            currentShareUrl = data.share_url;
+            if (window.lucide) lucide.createIcons();
+
             document.getElementById('resultCanvasBox').classList.remove('hidden');
             document.getElementById('resultCanvasBox').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        let currentShareUrl = null;
+
+        function copyCurrentShareLink() {
+            if (!currentShareUrl) return;
+            navigator.clipboard.writeText(currentShareUrl).then(() => {
+                const label = document.getElementById('copyShareLinkText');
+                if (label) {
+                    const original = label.innerText;
+                    label.innerText = currentLang === 'uk' ? 'Скопійовано! ✓' : 'Copied! ✓';
+                    setTimeout(() => { label.innerText = original; }, 2000);
+                }
+            }).catch(() => {
+                prompt(currentLang === 'uk' ? 'Посилання на результат:' : 'Share link:', currentShareUrl);
+            });
         }
 
         function resetForNewPrompt() {
@@ -1221,14 +1245,22 @@
                 .then(data => {
                     if (data.status === 'success' && data.history && data.history.length) {
                         const grid = document.getElementById('userHistoryGrid');
-                        grid.innerHTML = data.history.map(g => `
-                            <div class="relative rounded-xl overflow-hidden glass-card group aspect-square">
-                                <img src="${g.output_image_url || g.input_image_url}" class="w-full h-full object-cover">
-                                <a href="${g.output_image_url || g.input_image_url}" download class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition">
-                                    <i data-lucide="download" class="w-4 h-4"></i>
-                                </a>
+                        grid.innerHTML = data.history.map(g => {
+                            const imgSrc = g.output_image_url || g.input_image_url;
+                            const shareUrl = `/s/${g.share_token || g.id}`;
+                            return `
+                            <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group aspect-square shadow-sm">
+                                <img src="${imgSrc}" class="w-full h-full object-cover">
+                                <div class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 transition p-1">
+                                    <a href="${imgSrc}" download="AuraStudio_${g.id}.png" class="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white transition" title="Download">
+                                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                                    </a>
+                                    <a href="${shareUrl}" target="_blank" class="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white transition" title="Open Share Page">
+                                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                    </a>
+                                </div>
                             </div>
-                        `).join('');
+                        `;}).join('');
                         lucide.createIcons();
                     }
                 }).catch(() => {});
