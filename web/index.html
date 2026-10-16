@@ -1069,7 +1069,7 @@
         let loadingTimerInterval = null;
         let generationStartTimestamp = 0;
 
-        function startIntelligentLoadingHUD(hasPhoto, initialEta = 22, initialQueuePos = 1) {
+        function startIntelligentLoadingHUD(hasPhoto, initialEta = 22, initialQueuePos = 1, isWarm = true) {
             generationStartTimestamp = Date.now();
             const statusEl = document.getElementById('loadingStatusText');
             const subEl = document.getElementById('loadingSubText');
@@ -1083,7 +1083,14 @@
             if (etaEl) etaEl.innerText = `~${initialEta}s`;
             if (elapsedEl) elapsedEl.innerText = '0s';
 
-            if (initialQueuePos > 1) {
+            if (!isWarm) {
+                if (queueBadge) {
+                    queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200 shadow-xs';
+                }
+                if (queueText) queueText.innerText = currentLang === 'uk' ? '⚡ Прогрів GPU кластера (~75с)' : '⚡ GPU Cold Start (~75s)';
+                if (statusEl) statusEl.innerText = currentLang === 'uk' ? '⚡ Пробуджуємо Nvidia L40S GPU...' : '⚡ Waking up Nvidia L40S GPU...';
+                if (subEl) subEl.innerText = currentLang === 'uk' ? 'Перший запуск після простою: завантажуємо 20B модель у VRAM. Наступні — 22с!' : 'First run after idle: loading 20B model weights into VRAM. Subsequent runs take 22s!';
+            } else if (initialQueuePos > 1) {
                 if (queueBadge) {
                     queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 shadow-xs';
                 }
@@ -1092,7 +1099,7 @@
                 if (queueBadge) {
                     queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs';
                 }
-                if (queueText) queueText.innerText = currentLang === 'uk' ? 'Активний слот GPU • Обробка' : 'Active GPU Slot • Processing';
+                if (queueText) queueText.innerText = currentLang === 'uk' ? '🟢 Гарячий GPU • Обробка' : '🟢 Hot GPU Slot • Processing';
             }
 
             pBar.style.width = '15%';
@@ -1105,20 +1112,36 @@
                 const elapsed = Math.floor((Date.now() - generationStartTimestamp) / 1000);
                 if (elapsedEl) elapsedEl.innerText = `${elapsed}s`;
 
-                // Smooth non-linear progress simulation
-                if (elapsed <= 5) {
-                    currentProgress = Math.min(35, 15 + elapsed * 4);
-                } else if (elapsed <= 18) {
-                    currentProgress = Math.min(75, 35 + (elapsed - 5) * 3);
-                } else if (elapsed <= 25) {
-                    currentProgress = Math.min(88, 75 + (elapsed - 18) * 1.8);
-                } else if (elapsed <= 60) {
-                    currentProgress = Math.min(96, 88 + (elapsed - 25) * 0.25);
+                // Progress curve
+                if (!isWarm) {
+                    const maxExpected = initialEta || 78;
+                    currentProgress = Math.min(96, Math.max(15, (elapsed / maxExpected) * 94));
+                } else {
+                    if (elapsed <= 5) {
+                        currentProgress = Math.min(35, 15 + elapsed * 4);
+                    } else if (elapsed <= 18) {
+                        currentProgress = Math.min(75, 35 + (elapsed - 5) * 3);
+                    } else if (elapsed <= 25) {
+                        currentProgress = Math.min(88, 75 + (elapsed - 18) * 1.8);
+                    } else {
+                        currentProgress = Math.min(96, 88 + (elapsed - 25) * 0.25);
+                    }
                 }
                 pBar.style.width = `${Math.round(currentProgress)}%`;
                 if (pText) pText.innerText = `${Math.round(currentProgress)}%`;
 
-                // Dynamic Intelligent Stages
+                // Cold Start specific stages
+                if (!isWarm && elapsed < 35) {
+                    statusEl.innerText = currentLang === 'uk' ? '⚡ Пробуджуємо Nvidia L40S GPU...' : '⚡ Initializing GPU Cluster...';
+                    subEl.innerText = currentLang === 'uk' ? 'Завантаження 15.2GB вагів Qwen 2.5 DiT у 48GB VRAM...' : 'Allocating 48GB VRAM & mounting 15.2GB Qwen 2.5 DiT weights...';
+                    return;
+                } else if (!isWarm && elapsed < 55) {
+                    statusEl.innerText = currentLang === 'uk' ? '✨ Запуск середовища дифузії...' : '✨ Starting Diffusion Environment...';
+                    subEl.innerText = currentLang === 'uk' ? 'Кластер прогрітий! Починаємо трансформацію...' : 'Cluster warm! Executing diffusion pipeline...';
+                    return;
+                }
+
+                // Dynamic Intelligent Stages for warm inference
                 if (hasPhoto) {
                     if (elapsed < 6) {
                         statusEl.innerText = currentLang === 'uk' ? '🔒 Фіксуємо 100% рис обличчя...' : '🔒 Preserving 100% Facial Identity...';
@@ -1177,15 +1200,17 @@
 
             const hasPhoto = !!attachedFileBase64;
 
-            // Fetch live queue status from server for accurate queue position
+            // Fetch live queue & warm status from server for honest ETA & queue position
             let queuePos = 1;
             let etaSec = 22;
+            let isWarm = true;
             try {
                 const qRes = await fetch('/api/queue-status');
                 if (qRes.ok) {
                     const qData = await qRes.json();
                     if (qData.queue_position) queuePos = qData.queue_position;
                     if (qData.estimated_seconds) etaSec = qData.estimated_seconds;
+                    if (typeof qData.is_warm === 'boolean') isWarm = qData.is_warm;
                 }
             } catch(e) {}
 
@@ -1193,7 +1218,7 @@
             document.getElementById('generationLoadingBox').classList.remove('hidden');
             document.getElementById('generateBtn').disabled = true;
 
-            startIntelligentLoadingHUD(hasPhoto, etaSec, queuePos);
+            startIntelligentLoadingHUD(hasPhoto, etaSec, queuePos, isWarm);
             if (window.lucide) lucide.createIcons();
 
             try {

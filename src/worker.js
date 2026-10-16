@@ -1044,6 +1044,9 @@ export default {
     // =========================================================================
     if (url.pathname === "/api/queue-status" || url.pathname === "/functions/api/queue-status") {
       let activeJobs = 0;
+      let isWarm = false;
+      let secondsSinceLast = null;
+
       if (env.DB) {
         try {
           const row = await env.DB.prepare(`
@@ -1053,18 +1056,37 @@ export default {
               AND (strftime('%s', 'now') - strftime('%s', created_at)) < 300
           `).first();
           activeJobs = (row && row.count) || 0;
+
+          const lastGen = await env.DB.prepare(`
+            SELECT CAST((strftime('%s', 'now') - strftime('%s', created_at)) AS INTEGER) as seconds_ago
+            FROM generations
+            WHERE status = 'SUCCESS'
+            ORDER BY created_at DESC
+            LIMIT 1
+          `).first();
+
+          if (lastGen && typeof lastGen.seconds_ago === 'number') {
+            secondsSinceLast = lastGen.seconds_ago;
+            // Modal scaledown_window is 300s (5 minutes). If last generation was within 290s, container is warm!
+            isWarm = lastGen.seconds_ago <= 290;
+          }
         } catch(e) {
           console.error("Queue status query error:", e);
         }
       }
+
       const position = activeJobs + 1;
-      const etaSeconds = Math.max(22, position * 22);
+      const baseEta = isWarm ? 22 : 78;
+      const etaSeconds = baseEta * position;
+
       return jsonResponse({
         status: "success",
         active_jobs: activeJobs,
         queue_position: position,
+        is_warm: isWarm,
+        seconds_since_last: secondsSinceLast,
         estimated_seconds: etaSeconds,
-        cluster: "Modal Nvidia L40S 48GB"
+        cluster: isWarm ? "Modal Nvidia L40S 48GB (Hot / Ready)" : "Modal Nvidia L40S (Cold Start)"
       });
     }
 
