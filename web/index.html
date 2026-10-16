@@ -1193,49 +1193,69 @@
                 pBar.style.width = `${Math.round(currentProgress)}%`;
                 if (pText) pText.innerText = `${Math.round(currentProgress)}%`;
 
-                // Cold Start specific stages
-                if (!isWarm && elapsed < 35) {
-                    statusEl.innerText = currentLang === 'uk' ? '⚡ Пробуджуємо Nvidia L40S GPU...' : '⚡ Initializing GPU Cluster...';
-                    subEl.innerText = currentLang === 'uk' ? 'Завантаження 15.2GB вагів Qwen 2.5 DiT у 48GB VRAM...' : 'Allocating 48GB VRAM & mounting 15.2GB Qwen 2.5 DiT weights...';
-                    return;
-                } else if (!isWarm && elapsed < 55) {
-                    statusEl.innerText = currentLang === 'uk' ? '✨ Запуск середовища дифузії...' : '✨ Starting Diffusion Environment...';
-                    subEl.innerText = currentLang === 'uk' ? 'Кластер прогрітий! Починаємо трансформацію...' : 'Cluster warm! Executing diffusion pipeline...';
-                    return;
+                // Countdown calculation
+                const remaining = Math.max(1, initialEta - elapsed);
+                if (etaEl) {
+                    etaEl.innerText = elapsed >= initialEta ? (currentLang === 'uk' ? 'Фіналізація...' : 'Finalizing...') : `~${remaining}s`;
                 }
 
-                // Dynamic Intelligent Stages for warm inference
-                if (hasPhoto) {
-                    if (elapsed < 6) {
-                        statusEl.innerText = currentLang === 'uk' ? '🔒 Фіксуємо 100% рис обличчя...' : '🔒 Preserving 100% Facial Identity...';
-                        subEl.innerText = currentLang === 'uk' ? 'Зберігаємо анатомію очей, погляд, міміку та освітлення' : 'Locking facial contours, gaze, expression & natural lighting';
-                    } else if (elapsed < 16) {
-                        statusEl.innerText = currentLang === 'uk' ? '✨ Запуск моделі Qwen 2.5 DiT (6-Bit Master)...' : '✨ Qwen 2.5 DiT Latent Diffusion Running...';
-                        subEl.innerText = currentLang === 'uk' ? 'Обробка 20B мультимодальних параметрів на Nvidia L40S GPU' : 'Executing 20B multi-modal diffusion on Nvidia L40S 48GB GPU';
-                    } else if (elapsed < 26) {
-                        statusEl.innerText = currentLang === 'uk' ? '💎 Синтез реалістичної текстури та шкіри...' : '💎 Synthesizing Realistic Skin & Textures...';
-                        subEl.innerText = currentLang === 'uk' ? 'Рендеринг природних мікро-пор, тонкого волосся та підповерхневого розсіювання' : 'Rendering authentic micro-pores, peach fuzz hair & subsurface scattering';
-                    } else if (elapsed < 45) {
-                        statusEl.innerText = currentLang === 'uk' ? '⚡ Пікове навантаження кластера — фіналізація...' : '⚡ GPU Cluster Peak Demand — Finalizing...';
-                        subEl.innerText = currentLang === 'uk' ? 'Виділено додатковий обчислювальний потік для завершення рендеру' : 'High GPU demand detected. Compute stream allocated, finishing render...';
-                        if (queueBadge && queueText) {
-                            queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs';
-                            queueText.innerText = currentLang === 'uk' ? 'Пріоритетне виконання' : 'Priority Execution';
-                        }
+                // Cold Start specific stages and transition to Active Cluster
+                if (!isWarm) {
+                    if (elapsed < 35) {
+                        statusEl.innerText = currentLang === 'uk' ? '⚡ Пробуджуємо Nvidia L40S GPU...' : '⚡ Initializing GPU Cluster...';
+                        subEl.innerText = currentLang === 'uk' ? 'Завантаження 15.2GB вагів Qwen 2.5 DiT у 48GB VRAM...' : 'Allocating 48GB VRAM & mounting 15.2GB Qwen 2.5 DiT weights...';
+                    } else if (elapsed < 50) {
+                        statusEl.innerText = currentLang === 'uk' ? '✨ Запуск середовища дифузії...' : '✨ Starting Diffusion Environment...';
+                        subEl.innerText = currentLang === 'uk' ? 'Кластер майже готовий! Починаємо трансформацію...' : 'Cluster warming up! Executing diffusion pipeline...';
                     } else {
-                        statusEl.innerText = currentLang === 'uk' ? '🚀 Фінальне декодування VAE...' : '🚀 Finalizing Neural Latent Decoding...';
-                        subEl.innerText = currentLang === 'uk' ? 'Збираємо 8K зображення без стиснення. Майже готово!' : 'Assembling full uncompressed master render. Almost ready!';
+                        // After 50s, GPU has booted up and is running diffusion!
+                        if (queueBadge && queueText) {
+                            queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs';
+                            if (queueDot) queueDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+                            queueText.innerText = currentLang === 'uk' ? '🟢 Кластер активний • Дифузія' : '🟢 Cluster Active • Diffusion Running';
+                        }
+                        if (hasPhoto) {
+                            statusEl.innerText = currentLang === 'uk' ? '💎 Синтез реалістичної текстури та шкіри...' : '💎 Synthesizing Realistic Skin & Textures...';
+                            subEl.innerText = currentLang === 'uk' ? 'Рендеринг природних мікро-пор, тонкого волосся та підповерхневого розсіювання' : 'Rendering authentic micro-pores, peach fuzz hair & subsurface scattering';
+                        } else {
+                            statusEl.innerText = currentLang === 'uk' ? '✨ Генерація високої деталізації з Qwen 2.1...' : '✨ High-Fidelity Diffusion with Qwen 2.1...';
+                            subEl.innerText = currentLang === 'uk' ? 'Синтез фотореалістичного освітлення та деталей' : 'Synthesizing photorealistic illumination and depth of field';
+                        }
                     }
                 } else {
-                    if (elapsed < 8) {
-                        statusEl.innerText = currentLang === 'uk' ? '🎨 Аналізуємо текстовий опис сцени...' : '🎨 Analyzing Text Prompt & Scene...';
-                        subEl.innerText = currentLang === 'uk' ? 'Створення латентного простору композиції' : 'Building multi-modal latent composition space';
-                    } else if (elapsed < 20) {
-                        statusEl.innerText = currentLang === 'uk' ? '✨ Генерація високої деталізації з Qwen 2.1...' : '✨ High-Fidelity Diffusion with Qwen 2.1...';
-                        subEl.innerText = currentLang === 'uk' ? 'Синтез фотореалістичного освітлення та деталей' : 'Synthesizing photorealistic illumination and depth of field';
+                    // Dynamic Intelligent Stages for warm inference
+                    if (hasPhoto) {
+                        if (elapsed < 6) {
+                            statusEl.innerText = currentLang === 'uk' ? '🔒 Фіксуємо 100% рис обличчя...' : '🔒 Preserving 100% Facial Identity...';
+                            subEl.innerText = currentLang === 'uk' ? 'Зберігаємо анатомію очей, погляд, міміку та освітлення' : 'Locking facial contours, gaze, expression & natural lighting';
+                        } else if (elapsed < 16) {
+                            statusEl.innerText = currentLang === 'uk' ? '✨ Запуск моделі Qwen 2.5 DiT (6-Bit Master)...' : '✨ Qwen 2.5 DiT Latent Diffusion Running...';
+                            subEl.innerText = currentLang === 'uk' ? 'Обробка 20B мультимодальних параметрів на Nvidia L40S GPU' : 'Executing 20B multi-modal diffusion on Nvidia L40S 48GB GPU';
+                        } else if (elapsed < 26) {
+                            statusEl.innerText = currentLang === 'uk' ? '💎 Синтез реалістичної текстури та шкіри...' : '💎 Synthesizing Realistic Skin & Textures...';
+                            subEl.innerText = currentLang === 'uk' ? 'Рендеринг природних мікро-пор, тонкого волосся та підповерхневого розсіювання' : 'Rendering authentic micro-pores, peach fuzz hair & subsurface scattering';
+                        } else if (elapsed < 45) {
+                            statusEl.innerText = currentLang === 'uk' ? '⚡ Пікове навантаження кластера — фіналізація...' : '⚡ GPU Cluster Peak Demand — Finalizing...';
+                            subEl.innerText = currentLang === 'uk' ? 'Виділено додатковий обчислювальний потік для завершення рендеру' : 'High GPU demand detected. Compute stream allocated, finishing render...';
+                            if (queueBadge && queueText) {
+                                queueBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs';
+                                queueText.innerText = currentLang === 'uk' ? 'Пріоритетне виконання' : 'Priority Execution';
+                            }
+                        } else {
+                            statusEl.innerText = currentLang === 'uk' ? '🚀 Фінальне декодування VAE...' : '🚀 Finalizing Neural Latent Decoding...';
+                            subEl.innerText = currentLang === 'uk' ? 'Збираємо 8K зображення без стиснення. Майже готово!' : 'Assembling full uncompressed master render. Almost ready!';
+                        }
                     } else {
-                        statusEl.innerText = currentLang === 'uk' ? '💎 Завершення рендерингу...' : '💎 Finalizing Generation Output...';
-                        subEl.innerText = currentLang === 'uk' ? 'Декодування нейромережевих тензорів' : 'Decoding neural latent tensors to high-res image';
+                        if (elapsed < 8) {
+                            statusEl.innerText = currentLang === 'uk' ? '🎨 Аналізуємо текстовий опис сцени...' : '🎨 Analyzing Text Prompt & Scene...';
+                            subEl.innerText = currentLang === 'uk' ? 'Створення латентного простору композиції' : 'Building multi-modal latent composition space';
+                        } else if (elapsed < 20) {
+                            statusEl.innerText = currentLang === 'uk' ? '✨ Генерація високої деталізації з Qwen 2.1...' : '✨ High-Fidelity Diffusion with Qwen 2.1...';
+                            subEl.innerText = currentLang === 'uk' ? 'Синтез фотореалістичного освітлення та деталей' : 'Synthesizing photorealistic illumination and depth of field';
+                        } else {
+                            statusEl.innerText = currentLang === 'uk' ? '💎 Завершення рендерингу...' : '💎 Finalizing Generation Output...';
+                            subEl.innerText = currentLang === 'uk' ? 'Декодування нейромережевих тензорів' : 'Decoding neural latent tensors to high-res image';
+                        }
                     }
                 }
 
@@ -1246,12 +1266,15 @@
                 const pendingBadge = document.getElementById('pendingElapsedBadge');
                 const liveDot = document.getElementById('liveStatusDot');
 
-                if (liveBadge && statusEl) liveBadge.innerText = statusEl.innerText.replace(/[🔒✨💎⚡🚀🎨]/g, '').trim();
+                if (liveBadge && statusEl) liveBadge.innerText = statusEl.innerText.replace(/[🔒✨💎⚡🚀🎨🟢]/g, '').trim();
                 if (liveSubtext && subEl) liveSubtext.innerText = subEl.innerText;
                 if (liveBar) liveBar.style.width = `${Math.round(currentProgress)}%`;
-                if (pendingBadge) pendingBadge.innerText = `${elapsed}s elapsed`;
+                if (pendingBadge) {
+                    const etaTxt = elapsed >= initialEta ? 'Finalizing...' : `~${remaining}s left`;
+                    pendingBadge.innerText = `${elapsed}s elapsed • ${etaTxt}`;
+                }
                 if (liveDot) {
-                    liveDot.className = elapsed < 4 ? "w-2 h-2 rounded-full bg-amber-400 animate-pulse" : "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                    liveDot.className = (!isWarm && elapsed < 50) ? "w-2 h-2 rounded-full bg-sky-400 animate-pulse" : "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
                 }
             }, 1000);
         }
@@ -1598,6 +1621,9 @@
             const pendingBox = document.getElementById('streamPendingBox');
             if (!pendingBox) return;
 
+            const emptyState = document.getElementById('streamEmptyState');
+            if (emptyState) emptyState.classList.add('hidden');
+
             const presetName = (activeTask.presetId || 'Transformation').replace(/_/g, ' ').toUpperCase();
             const userAvatarLetter = currentUser ? ((currentUser.name || currentUser.username || 'U')[0]).toUpperCase() : 'U';
             const inPhoto = activeTask.inputImage;
@@ -1650,11 +1676,15 @@
             `;
             pendingBox.classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
+            pendingBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         function renderFailedStreamCard(activeTask, errorMsg) {
             const pendingBox = document.getElementById('streamPendingBox');
             if (!pendingBox) return;
+
+            const emptyState = document.getElementById('streamEmptyState');
+            if (emptyState) emptyState.classList.add('hidden');
 
             const presetName = (activeTask.presetId || 'Transformation').replace(/_/g, ' ').toUpperCase();
             const userAvatarLetter = currentUser ? ((currentUser.name || currentUser.username || 'U')[0]).toUpperCase() : 'U';
@@ -1703,6 +1733,7 @@
             `;
             pendingBox.classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
+            pendingBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         function clearPendingStreamCard() {
@@ -1710,6 +1741,10 @@
             if (pendingBox) {
                 pendingBox.innerHTML = '';
                 pendingBox.classList.add('hidden');
+            }
+            const emptyState = document.getElementById('streamEmptyState');
+            if (emptyState && (!cachedUserHistory || cachedUserHistory.length === 0)) {
+                emptyState.classList.remove('hidden');
             }
         }
 

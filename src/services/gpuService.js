@@ -1,7 +1,7 @@
 // GPU Communication & Modal Load Balancing Service
 
 export async function callModalWithFallback(endpoints, payload) {
-  let lastErr = "";
+  let errors = [];
   for (const ep of endpoints) {
     try {
       const res = await fetch(ep, {
@@ -15,15 +15,16 @@ export async function callModalWithFallback(endpoints, payload) {
         if (data.status === "success") {
           return data;
         }
-        lastErr = data.message || "Model failed to process";
+        errors.push(`${ep}: ${data.message || "Model failed to process"}`);
       } else {
-        lastErr = await res.text();
+        const txt = await res.text();
+        errors.push(`${ep} (HTTP ${res.status}): ${txt.slice(0, 200)}`);
       }
     } catch (e) {
-      lastErr = e.message;
+      errors.push(`${ep}: ${e.message}`);
     }
   }
-  throw new Error(`All Modal GPU endpoints failed. Last error: ${lastErr}`);
+  throw new Error(`All Modal GPU endpoints failed. Errors: ${errors.join(" | ")}`);
 }
 
 export async function uploadToR2(bucket, key, base64Data) {
