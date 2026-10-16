@@ -252,7 +252,7 @@ export async function handleTelegramDebug(request, env, url) {
       const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
         image_base64: resPhoto.base64,
         prompt,
-        negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity",
+        negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, painterly, soft focus, distorted eyes, neck smudges, black dots, stippling, pepper noise, artifacts, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity",
         steps: 22,
         cfg: 1.95,
         seed: 888424
@@ -390,7 +390,7 @@ export async function handleTelegramWebhook(request, env, ctx, url) {
         const steps = 22;
         const negPrompt = isUltraHd
           ? "smooth plastic skin, airbrushed, porcelain doll, wax figure, beauty filter, blur, render, CGI, digital retouch, artificial skin, cartoon, 3d render, distorted eyes, changed face, altered eyes, different identity"
-          : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity";
+          : "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, painterly, soft focus, distorted eyes, neck smudges, black dots, stippling, pepper noise, artifacts, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity";
         
         const explicitFileId = cb.message?.photo?.[cb.message.photo.length - 1]?.file_id ||
                                cb.message?.reply_to_message?.photo?.[cb.message.reply_to_message.photo.length - 1]?.file_id;
@@ -657,7 +657,7 @@ export async function handleTelegramWebhook(request, env, ctx, url) {
               const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
                 image_base64: photoBase64,
                 prompt: caption,
-                negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
+                negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes, neck smudges, black dots, stippling, pepper noise, artifacts",
                 steps: 12,
                 cfg: 1.95,
                 seed: 888424
@@ -840,7 +840,7 @@ export async function handleTelegramWebhook(request, env, ctx, url) {
               : `candid 8k dslr photograph, ultra-detailed, cinematic soft lighting, realistic depth of field, photorealistic, ${text}`;
 
             const cleanNeg = hasPhoto
-              ? "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity"
+              ? "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, painterly, soft focus, distorted eyes, neck smudges, black dots, stippling, pepper noise, artifacts, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity"
               : "blurry, low quality, distorted, bad anatomy, artifacts, malformed, extra limbs, text, watermark";
 
             const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {

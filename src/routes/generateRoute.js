@@ -119,7 +119,7 @@ export async function handleGenerate(request, env, ctx, url) {
 
     const cleanNeg = isTextToImage
       ? "blurry, low quality, distorted, bad anatomy, artifacts, malformed, deformed, text, watermark"
-      : "cropped, close-up crop, zoomed in, out of frame, cut off face, macro zoom, plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity";
+      : "cropped, close-up crop, zoomed in, out of frame, cut off face, macro zoom, plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, painterly, soft focus, distorted eyes, neck smudges, black dots, stippling, pepper noise, artifacts, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity";
 
     const payload = {
       image_base64: effectiveInputBase64,

@@ -26,6 +26,7 @@ export const GLOBAL_PRESETS = {
   ultrahd_skin: "enhance to authentic ultra-sharp 8k high resolution master portrait, preserve full portrait composition, preserve full framing, visible delicate natural micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft cinematic studio lighting, 85mm lens, razor-sharp focus",
   linkedin: "change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting",
   old_money: "change clothes to an elegant Old Money beige cashmere knit sweater and tailored linen trousers",
+  charcoal_merino: "change clothes to a finely tailored dark charcoal grey merino wool crewneck sweater with crisp white undershirt collar, clean ribbed cuffs, professional studio key lighting from upper left, subtle specular highlights on cheeks",
   blonde: "change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights",
   bali: "change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting",
   cyberpunk: "change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing reflections",
@@ -35,7 +36,7 @@ export const GLOBAL_PRESETS = {
 };
 
 // Protected Standards (Rule 6: Mandatory Golden Identity Retention Formula)
-export const IDENTITY_ANCHOR_SUFFIX = "keep exact same person, 100% exact original face, preserve full original framing, no cropping, no zoom-in, sharp focused eyes and gaze, exact original lips and expression, preserve original lighting, exact original skin color and tone, seamless photorealistic integration, no text";
+export const IDENTITY_ANCHOR_SUFFIX = "keep exact same person, 100% exact original face, preserve full original framing, no cropping, no zoom-in, sharp focused eyes and gaze, exact original lips and expression, preserve original lighting, exact original skin color and tone, authentic natural micro skin pores, gentle subsurface scattering, clean jawline and neck, razor-sharp focused eyes with natural catchlights, raw 35mm dslr portrait photography, seamless photorealistic integration, no text";
 
 export function anchorPromptForPhoto(promptText) {
   if (!promptText) return IDENTITY_ANCHOR_SUFFIX;
