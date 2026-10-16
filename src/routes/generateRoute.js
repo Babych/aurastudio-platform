@@ -150,7 +150,7 @@ export async function handleGenerate(request, env, ctx, url) {
 
     // Register initial PROCESSING state in D1 for window-close & reload recovery
     if (env.DB) {
-      const inThumbEarly = isTextToImage ? null : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
+      const inThumbEarly = isTextToImage ? "text_to_image_blank" : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
       try {
         await env.DB.prepare(`
           INSERT INTO generations (id, user_id, source, preset_id, prompt, input_image_url, status, duration_seconds, is_shared, share_token)
@@ -197,7 +197,7 @@ export async function handleGenerate(request, env, ctx, url) {
             WHERE id = ?
           `).bind(user_id).run().catch(() => {});
 
-          let inThumb = isTextToImage ? null : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
+          let inThumb = isTextToImage ? "text_to_image_blank" : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
           let outThumb = resultDataUri;
 
           if (env.STORAGE) {
