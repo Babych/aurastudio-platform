@@ -350,8 +350,8 @@
             </div>
 
             <div class="space-y-2">
-                <h3 class="text-xl font-bold tracking-tight text-white" id="loadingStatusText">Rendering Transformation with Qwen 2.5 DiT...</h3>
-                <p class="text-xs text-gray-400">Preserving 100% facial identity, eyes, and skin texture (~20-25s)</p>
+                <h3 class="text-xl font-bold tracking-tight text-white" id="loadingStatusText">Rendering with Qwen 2.1 DiT...</h3>
+                <p class="text-xs text-gray-400" id="loadingSubText">Synthesizing photo (~20-25s)</p>
             </div>
 
             <div class="w-full max-w-md mx-auto bg-gray-900 rounded-full h-2 overflow-hidden border border-gray-800">
@@ -371,9 +371,9 @@
             </div>
 
             <!-- Comparison Grid (Side by Side) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="resultGrid">
                 <!-- Original Input -->
-                <div class="space-y-2">
+                <div class="space-y-2" id="resultInputCol">
                     <div class="text-xs font-semibold text-gray-400 flex items-center justify-between px-1">
                         <span>Original Input</span>
                     </div>
@@ -692,8 +692,8 @@
                 btn_login: "Sign In",
                 tab_photo_studio: "Photo Studio",
                 greeting_title: "What would you like to create?",
-                greeting_subtitle: "Upload any selfie or portrait, then describe your desired transformation or pick a style using /.",
-                prompt_placeholder: "Describe how to transform this photo, or type '/' for designer styles...",
+                greeting_subtitle: "Describe any image to generate with Qwen 2.1, or attach a photo to edit styles.",
+                prompt_placeholder: "Describe an image to generate from scratch, or attach a photo to edit styles (type '/' for presets)...",
                 btn_attach: "Attach Photo",
                 btn_styles: "Presets",
                 btn_generate: "Generate",
@@ -706,8 +706,8 @@
                 btn_login: "Увійти",
                 tab_photo_studio: "Фото-студія",
                 greeting_title: "Що ви хочете створити сьогодні?",
-                greeting_subtitle: "Завантажте фото та опишіть бажану зміну або оберіть готовий стиль через /.",
-                prompt_placeholder: "Опишіть, як змінити фото, або введіть '/' для вибору стилів...",
+                greeting_subtitle: "Опишіть картинку для генерації з нуля на базі Qwen 2.1 або додайте фото для стилізації.",
+                prompt_placeholder: "Опишіть зображення для генерації з нуля, або прикріпіть фото (натисніть '/' для пресетів)...",
                 btn_attach: "Додати фото",
                 btn_styles: "Пресети",
                 btn_generate: "Згенерувати",
@@ -1024,15 +1024,10 @@
             });
         }
 
-        // Trigger AI Generation
+        // Trigger AI Generation (Supports both Image-to-Image and Text-to-Image with Qwen 2.1 DiT)
         async function triggerGeneration() {
             if (!currentUser || !currentUser.id) {
                 openAuthModal();
-                return;
-            }
-
-            if (!attachedFileBase64) {
-                alert(currentLang === 'uk' ? 'Будь ласка, прикріпіть фото (натисніть 📎 або перетягніть).' : 'Please attach a photo first (click 📎 or drag & drop).');
                 return;
             }
 
@@ -1042,7 +1037,19 @@
                 return;
             }
 
-            // Show Loading State
+            const hasPhoto = !!attachedFileBase64;
+
+            // Show Loading State with dynamic mode description
+            const statusText = document.getElementById('loadingStatusText');
+            const subText = document.getElementById('loadingSubText');
+            if (hasPhoto) {
+                if (statusText) statusText.innerText = currentLang === 'uk' ? 'Трансформуємо фото з Qwen 2.1 DiT...' : 'Rendering Transformation with Qwen 2.1 DiT...';
+                if (subText) subText.innerText = currentLang === 'uk' ? 'Зберігаємо 100% рис обличчя та текстуру шкіри (~20-25с)' : 'Preserving 100% facial identity, eyes, and skin texture (~20-25s)';
+            } else {
+                if (statusText) statusText.innerText = currentLang === 'uk' ? 'Генеруємо зображення з нуля з Qwen 2.1...' : 'Generating Image from Scratch with Qwen 2.1...';
+                if (subText) subText.innerText = currentLang === 'uk' ? 'Синтезуємо нову сцену за описом (~20-25с)' : 'Synthesizing full scene from text prompt (~20-25s)';
+            }
+
             document.getElementById('resultCanvasBox').classList.add('hidden');
             document.getElementById('generationLoadingBox').classList.remove('hidden');
             document.getElementById('generateBtn').disabled = true;
@@ -1063,9 +1070,9 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        image_base64: attachedFileBase64,
+                        image_base64: attachedFileBase64 || null,
                         prompt: prompt,
-                        preset_id: selectedPresetId || 'custom',
+                        preset_id: selectedPresetId || (hasPhoto ? 'custom' : 'text_to_image'),
                         user_id: currentUser.id,
                         user_email: currentUser.email,
                         user_name: currentUser.name
@@ -1101,11 +1108,33 @@
         }
 
         function showResult(data) {
-            document.getElementById('resultInputImg').src = attachedFileBase64;
+            const hasInput = !!attachedFileBase64;
+            const inputCol = document.getElementById('resultInputCol');
+            const resultGrid = document.getElementById('resultGrid');
+
+            if (inputCol) {
+                if (hasInput) {
+                    inputCol.classList.remove('hidden');
+                    document.getElementById('resultInputImg').src = attachedFileBase64;
+                    if (resultGrid) {
+                        resultGrid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-4';
+                    }
+                } else {
+                    inputCol.classList.add('hidden');
+                    if (resultGrid) {
+                        resultGrid.className = 'grid grid-cols-1 max-w-lg mx-auto gap-4';
+                    }
+                }
+            }
+
             document.getElementById('resultOutputImg').src = data.result_base64;
             document.getElementById('downloadResultBtn').href = data.result_base64;
             document.getElementById('resultDurationTag').innerText = (data.duration_seconds || 22.4) + 's';
-            document.getElementById('resultPresetTag').innerText = (selectedPresetId || 'Custom Style').replace(/_/g, ' ').toUpperCase();
+
+            const isT2I = data.mode === 'text_to_image' || !hasInput;
+            document.getElementById('resultPresetTag').innerText = isT2I
+                ? '✨ Qwen 2.1 Text-to-Image'
+                : (selectedPresetId || 'Custom Style').replace(/_/g, ' ').toUpperCase();
 
             if (data.twitter_intent_url) {
                 document.getElementById('shareTwitterBtn').href = data.twitter_intent_url;

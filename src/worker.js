@@ -52,6 +52,9 @@ const MODAL_PHOTO_ENDPOINTS = [
 
 const DAILY_FREE_GENERATIONS_LIMIT = 5;
 
+// Neutral blank canvas base64 for pure Text-to-Image generation with Qwen 2.1 DiT
+const DEFAULT_BLANK_CANVAS_BASE64 = "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";
+
 const GLOBAL_PRESETS = {
   ultrahd_skin: "extreme close-up macro 8k candid dslr photo, visible individual micro skin pores, delicate natural peach fuzz vellus hair, authentic unretouched skin texture, subtle subcutaneous capillaries, delicate specular sebum reflections, soft studio lighting, 85mm f/1.4 lens, razor-sharp focus",
   linkedin: "change clothes to a sharp tailored dark navy business suit with crisp white shirt and studio lighting",
@@ -1087,11 +1090,23 @@ export default {
 
           const taskId = `task_${Date.now().toString().slice(-6)}_${Math.random().toString(36).substring(2, 6)}`;
           const shareToken = taskId.replace('task_', 's_');
-          const cleanNeg = "text, watermark, changed face, altered eyes, blurry face, different identity, fake skin, plastic wax, doll, airbrushed skin, deformed, blurry";
+
+          const isTextToImage = !image_base64 || image_base64 === "empty" || (typeof image_base64 === "string" && image_base64.trim() === "");
+          const effectiveInputBase64 = isTextToImage
+            ? DEFAULT_BLANK_CANVAS_BASE64
+            : image_base64.replace(/^data:image\/\w+;base64,/, "");
+
+          const finalPrompt = isTextToImage
+            ? `candid 8k dslr photograph, ultra-detailed, cinematic soft lighting, realistic depth of field, photorealistic, ${prompt}`
+            : prompt;
+
+          const cleanNeg = isTextToImage
+            ? "blurry, low quality, distorted, bad anatomy, artifacts, malformed, deformed, text, watermark"
+            : "text, watermark, changed face, altered eyes, blurry face, different identity, fake skin, plastic wax, doll, airbrushed skin, deformed, blurry";
 
           const payload = {
-            image_base64: image_base64.replace(/^data:image\/\w+;base64,/, ""),
-            prompt: prompt,
+            image_base64: effectiveInputBase64,
+            prompt: finalPrompt,
             negative_prompt: cleanNeg,
             steps: 22,
             cfg: 1.95,
@@ -1121,17 +1136,15 @@ export default {
                   WHERE id = ?
                 `).bind(user_id).run();
 
-                let inThumb = image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`;
+                let inThumb = isTextToImage ? null : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
                 let outThumb = resultDataUri;
 
                 // Save to R2 if available
                 if (env.STORAGE) {
-                  const inExt = inThumb.includes("image/png") ? ".png" : ".jpg";
+                  const inExt = inThumb && inThumb.includes("image/png") ? ".png" : ".jpg";
                   const outExt = outThumb.includes("image/png") ? ".png" : ".jpg";
                   
-                  // Non-blocking upload via ctx.waitUntil or await directly?
-                  // Doing await directly ensures DB gets the clean URL, but takes extra 100ms
-                  const r2InUrl = await uploadToR2(env.STORAGE, `in_${taskId}${inExt}`, inThumb);
+                  const r2InUrl = inThumb ? await uploadToR2(env.STORAGE, `in_${taskId}${inExt}`, inThumb) : null;
                   const r2OutUrl = await uploadToR2(env.STORAGE, `out_${taskId}${outExt}`, outThumb);
                   
                   if (r2InUrl) inThumb = url.origin + r2InUrl;
@@ -1147,7 +1160,7 @@ export default {
                 `).bind(
                   taskId,
                   user_id,
-                  preset_id || "custom",
+                  preset_id || (isTextToImage ? "text_to_image" : "custom"),
                   prompt.slice(0, 500),
                   inThumb,
                   outThumb,
@@ -1177,6 +1190,7 @@ export default {
           return jsonResponse({
             status: "success",
             task_id: taskId,
+            mode: isTextToImage ? "text_to_image" : "image_to_image",
             share_token: shareToken,
             share_url: shareUrl,
             twitter_intent_url: twitterIntentUrl,
@@ -2192,95 +2206,145 @@ export default {
             return jsonResponse({ ok: true });
           }
 
-          // Handle Custom Text Prompt from user
+          // Handle Custom Text Prompt from user (Supports Image-to-Image & pure Text-to-Image with Qwen 2.1 DiT)
           if (text && !text.startsWith("/")) {
             const replyPhotos = update.message.reply_to_message?.photo;
             const replyPhotoId = replyPhotos && replyPhotos.length > 0 ? replyPhotos[replyPhotos.length - 1].file_id : null;
             const photoData = await getTgUserPhotoBase64(env, botToken, userId, replyPhotoId);
 
-            if (photoData && photoData.base64) {
-              const targetTaskId = `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-              await setTgSession(env, userId, { currentTaskId: targetTaskId });
-              await sendTgMessage(chatId, `⏳ *Генеруємо трансформацію за вашим описом:*\n_"${text}"_...\n\n_Зберігаємо 100% рис обличчя та деталізацію (~20-25с)_`);
-              sendTgChatAction(chatId, "upload_photo");
+            const hasPhoto = !!(photoData && photoData.base64);
+            const effectivePhotoBase64 = hasPhoto ? photoData.base64 : DEFAULT_BLANK_CANVAS_BASE64;
+            const modeLabel = hasPhoto ? "Image-to-Image" : "Text-to-Image (генерація з нуля)";
+            const presetId = hasPhoto ? "custom" : "text_to_image";
 
-              // Immediately record as PENDING in D1 so the visual journal shows it in real-time
-              ctx.waitUntil(recordGenerationInD1(env, {
-                id: targetTaskId,
-                userId,
-                source: "telegram_bot",
-                presetId: "custom",
-                prompt: text,
-                inputBase64: photoData.base64,
-                outputBase64: null,
-                duration: null,
-                status: "PENDING"
-              }));
+            // Check Telegram daily quota
+            let dailyUsedTg = 0;
+            if (env.DB && !isAdmin) {
+              const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first();
+              const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first();
+              const dailyCountRow = await env.DB.prepare(`
+                SELECT COUNT(*) as count
+                FROM generations 
+                WHERE user_id = ? AND status = 'SUCCESS' AND (strftime('%s', 'now') - strftime('%s', created_at)) < 86400
+              `).bind(userId).first();
 
-              ctx.waitUntil((async () => {
-                const startTime = Date.now();
-                try {
-                  // Call Modal GPU with multi-account failover
-                  const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
-                    image_base64: photoData.base64,
-                    prompt: text,
-                    negative_prompt: "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes",
-                    steps: 12,
-                    cfg: 1.95,
-                    seed: 888424
-                  });
+              dailyUsedTg = (dailyCountRow && dailyCountRow.count) || 0;
 
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-                  if (mData.status === "success" && mData.result_base64) {
-                    await recordGenerationInD1(env, {
-                      id: targetTaskId,
-                      userId,
-                      source: "telegram_bot",
-                      presetId: "custom",
-                      prompt: text,
-                      inputBase64: photoData.base64,
-                      outputBase64: mData.result_base64,
-                      duration,
-                      status: "SUCCESS"
-                    });
-
-                    await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nОпис: _"${text}"_\nДвигун: Qwen 2.5 DiT 20B`, {
-                      reply_markup: {
-                        inline_keyboard: [
-                          [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
+              if (dailyUsedTg >= DAILY_FREE_GENERATIONS_LIMIT) {
+                if (!sub && (!u || (u.stars_balance || 0) < 10)) {
+                  await sendTgMessage(chatId, `⛔ *Щоденний безкоштовний ліміт вичерпано!*\n\nВи використали всі *${DAILY_FREE_GENERATIONS_LIMIT}* безкоштовних генерацій на сьогодні.\n\nПоповніть баланс Telegram Stars (⭐️ 10 за генерацію) або підключіть тариф:`, {
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "⭐️ Купити Starter (250 Stars)", callback_data: "buy_starter" },
+                          { text: "⭐️ Купити Unlimited (500 Stars)", callback_data: "buy_unlimited" }
+                        ],
+                        [
+                          { text: "🌐 Відкрити Web Studio", url: "https://aurastudio-ai.memory1024.workers.dev" }
                         ]
-                      }
-                    });
-                  } else {
-                    throw new Error(mData.message || "Model failed to return image result");
-                  }
-                } catch(err) {
-                  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-                  console.error("Custom prompt TG generation error:", err);
-                  logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                      ]
+                    }
+                  });
+                  return jsonResponse({ ok: true });
+                } else if (!sub && u && (u.stars_balance || 0) >= 10) {
+                  await env.DB.prepare("UPDATE users SET stars_balance = stars_balance - 10 WHERE id = ?").bind(userId).run();
+                }
+              }
+            }
+
+            const targetTaskId = `tg_gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            await setTgSession(env, userId, { currentTaskId: targetTaskId });
+
+            const statusHint = hasPhoto
+              ? "_Зберігаємо 100% рис обличчя та деталізацію (~20-25с)_"
+              : "_Малюємо нову сцену за описом на базі Qwen 2.1 DiT 20B (~20-25с)_";
+
+            await sendTgMessage(chatId, `⏳ *Генеруємо зображення (${modeLabel}):*\n_"${text}"_...\n\n${statusHint}`);
+            sendTgChatAction(chatId, "upload_photo");
+
+            // Immediately record as PENDING in D1
+            ctx.waitUntil(recordGenerationInD1(env, {
+              id: targetTaskId,
+              userId,
+              source: "telegram_bot",
+              presetId,
+              prompt: text,
+              inputBase64: hasPhoto ? photoData.base64 : null,
+              outputBase64: null,
+              duration: null,
+              status: "PENDING"
+            }));
+
+            ctx.waitUntil((async () => {
+              const startTime = Date.now();
+              try {
+                const finalPrompt = hasPhoto
+                  ? text
+                  : `candid 8k dslr photograph, ultra-detailed, cinematic soft lighting, realistic depth of field, photorealistic, ${text}`;
+
+                const cleanNeg = hasPhoto
+                  ? "plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, distorted eyes"
+                  : "blurry, low quality, distorted, bad anatomy, artifacts, malformed, extra limbs, text, watermark";
+
+                // Call Modal GPU with multi-account failover
+                const mData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, {
+                  image_base64: effectivePhotoBase64,
+                  prompt: finalPrompt,
+                  negative_prompt: cleanNeg,
+                  steps: 12,
+                  cfg: 1.95,
+                  seed: 888424
+                });
+
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                if (mData.status === "success" && mData.result_base64) {
                   await recordGenerationInD1(env, {
                     id: targetTaskId,
                     userId,
                     source: "telegram_bot",
-                    presetId: "custom",
+                    presetId,
                     prompt: text,
-                    inputBase64: null,
-                    outputBase64: null,
+                    inputBase64: hasPhoto ? photoData.base64 : null,
+                    outputBase64: mData.result_base64,
                     duration,
-                    status: "FAILED",
-                    errorMessage: err.message
+                    status: "SUCCESS"
                   });
-                  await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
+
+                  const freeTgLeft = Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsedTg + 1));
+                  const quotaBadge = freeTgLeft > 0 ? `\n🎁 Залишилось безкоштовних: *${freeTgLeft} з ${DAILY_FREE_GENERATIONS_LIMIT}* на сьогодні` : `\n⭐️ Безкоштовний ліміт вичерпано (${DAILY_FREE_GENERATIONS_LIMIT}/${DAILY_FREE_GENERATIONS_LIMIT})`;
+                  const tipStr = hasPhoto ? "" : "\n\n💡 _Підказка: якщо надішлете селфі, Qwen змінить ваш стиль зі збереженням 100% рис обличчя!_";
+
+                  await sendTgPhoto(chatId, mData.result_base64, `✨ *Ваш результат готовий!*\n\nРежим: *${modeLabel}*\nОпис: _"${text}"_${quotaBadge}${tipStr}\nДвигун: Qwen 2.1 DiT 20B`, {
+                    reply_markup: {
+                      inline_keyboard: [
+                        [{ text: "🌐 Відкрити AuraStudio Web", url: "https://aurastudio-ai.memory1024.workers.dev" }]
+                      ]
+                    }
+                  });
+                } else {
+                  throw new Error(mData.message || "Model failed to return image result");
                 }
-              })());
-              return jsonResponse({ ok: true });
-            } else {
-              // No photo on file yet, remember prompt for the next incoming photo
-              await setTgSession(env, userId, { pendingAction: "preset", presetKey: "custom", prompt: text });
-              await sendTgMessage(chatId, `✅ Ваш опис збережено:\n_"${text}"_\n\n📸 Тепер надішліть сюди своє селфі або фото для генерації.`);
-              return jsonResponse({ ok: true });
-            }
+              } catch(err) {
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                console.error("Custom prompt TG generation error:", err);
+                logCriticalError(env, ctx, "telegram_photo", err.message, userId);
+                await recordGenerationInD1(env, {
+                  id: targetTaskId,
+                  userId,
+                  source: "telegram_bot",
+                  presetId,
+                  prompt: text,
+                  inputBase64: null,
+                  outputBase64: null,
+                  duration,
+                  status: "FAILED",
+                  errorMessage: err.message
+                });
+                await sendTgMessage(chatId, `❌ Помилка генерації фото: ${err.message}`);
+              }
+            })());
+            return jsonResponse({ ok: true });
           }
 
           // Standard /start or greeting
