@@ -68,7 +68,7 @@ const GLOBAL_PRESETS = {
 };
 
 // Protected Standards (Rule 6: Mandatory Golden Identity Retention Formula)
-const IDENTITY_ANCHOR_SUFFIX = "keep exact same person, 100% exact original face, preserve full original framing, no cropping, no zoom-in, raw 35mm film photograph, authentic natural unretouched skin texture, organic micro skin pores, delicate peach fuzz vellus hair, realistic subcutaneous depth, sharp focused eyes and gaze, exact original lips and expression, preserve original lighting, exact original skin tone, seamless photorealistic integration, no text";
+const IDENTITY_ANCHOR_SUFFIX = "keep exact same person, 100% exact original face, preserve full original framing, no cropping, no zoom-in, sharp focused eyes and gaze, exact original lips and expression, preserve original lighting, exact original skin color and tone, seamless photorealistic integration, no text";
 
 function anchorPromptForPhoto(promptText) {
   if (!promptText) return IDENTITY_ANCHOR_SUFFIX;
@@ -1158,18 +1158,18 @@ export default {
             : image_base64.replace(/^data:image\/\w+;base64,/, "");
 
           const finalPrompt = isTextToImage
-            ? `raw 35mm film photograph, ultra-detailed authentic natural skin texture, visible delicate micro-pores, realistic depth of field, soft cinematic lighting, photorealistic, ${prompt}`
+            ? `candid 8k dslr photograph, ultra-detailed, cinematic soft lighting, realistic depth of field, photorealistic, ${prompt}`
             : anchorPromptForPhoto(prompt);
 
           const cleanNeg = isTextToImage
             ? "blurry, low quality, distorted, bad anatomy, artifacts, malformed, deformed, text, watermark"
-            : "cropped, close-up crop, zoomed in, out of frame, cut off face, macro zoom, plastic skin, airbrushed, wax, doll, mannequin, barbie, cartoon, 3d render, CGI, over-smoothed skin, filtered look, porcelain skin, waxy surface, blurry, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity";
+            : "cropped, close-up crop, zoomed in, out of frame, cut off face, macro zoom, plastic skin, airbrushed, wax, doll, cartoon, 3d render, blurry, noisy, distorted eyes, extra fingers, text, watermark, deformed anatomy, bad proportions, bad lighting, changed face, altered eyes, different identity";
 
           const payload = {
             image_base64: effectiveInputBase64,
             prompt: finalPrompt,
             negative_prompt: cleanNeg,
-            steps: 24,
+            steps: 22,
             cfg: 1.95,
             seed: 888424
           };
