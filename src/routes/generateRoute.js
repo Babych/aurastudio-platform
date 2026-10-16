@@ -9,6 +9,7 @@ import {
 import { jsonResponse, logCriticalError } from "../utils/response.js";
 import { callModalWithFallback, uploadToR2 } from "../services/gpuService.js";
 import { getLiveQueueStatus, getTaskStatus } from "../services/queueService.js";
+import { isUserAdmin } from "../services/dbService.js";
 
 export async function handleQueueStatus(request, env, url) {
   const statusData = await getLiveQueueStatus(env);
@@ -61,9 +62,10 @@ export async function handleGenerate(request, env, ctx, url) {
       }, 401);
     }
 
-    // Check 24-hour daily quota & Telegram Stars balance in D1
+    // Check 24-hour daily quota & Telegram Stars balance in D1 (Admins exempt)
+    const isAdmin = isUserAdmin(user_id, user_name, user_email, env);
     let dailyUsed = 0;
-    if (env.DB) {
+    if (env.DB && !isAdmin) {
       const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(user_id).first();
       const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user_id).first();
 
@@ -211,7 +213,7 @@ export async function handleGenerate(request, env, ctx, url) {
       duration_seconds: parseFloat(dur),
       result_base64: resultDataUri,
       daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
-      free_remaining: Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsed + 1))
+      free_remaining: isAdmin ? 999 : Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsed + 1))
     });
   } catch (err) {
     logCriticalError(env, ctx, "modal_photo_gpu", err.message, null);

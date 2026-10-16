@@ -2,7 +2,7 @@
 
 import { jsonResponse } from "../utils/response.js";
 import { DAILY_FREE_GENERATIONS_LIMIT } from "../config/constants.js";
-import { authSessions } from "../services/dbService.js";
+import { authSessions, isUserAdmin } from "../services/dbService.js";
 
 export async function handleConfig(request, env, url) {
   return jsonResponse({
@@ -224,6 +224,23 @@ export async function handleUserProfile(request, env, url) {
     const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'").bind(userId).first();
     const recentGens = await env.DB.prepare("SELECT * FROM generations WHERE user_id = ? ORDER BY created_at DESC LIMIT 12").bind(userId).all();
 
+    const isAdmin = isUserAdmin(userId, u ? u.username : null, u ? u.email : null, env);
+    if (isAdmin) {
+      return jsonResponse({
+        status: "success",
+        user: u || { id: userId, free_generations_used: 0, stars_balance: 999 },
+        is_admin: true,
+        stars_balance: (u && u.stars_balance) || 999,
+        daily_limit: 999,
+        free_used_today: 0,
+        free_remaining: 999,
+        hours_left: 0,
+        can_generate: true,
+        subscription: sub || { plan_tier: "admin_unlimited", status: "active" },
+        history: (recentGens && recentGens.results) || []
+      });
+    }
+
     const dailyCountRow = await env.DB.prepare(`
       SELECT COUNT(*) as count
       FROM generations 
@@ -254,6 +271,7 @@ export async function handleUserProfile(request, env, url) {
     return jsonResponse({
       status: "success",
       user: u || { id: userId, free_generations_used: 0, stars_balance: 0 },
+      is_admin: false,
       stars_balance: starsBalance,
       daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
       free_used_today: freeUsedToday,
@@ -265,16 +283,18 @@ export async function handleUserProfile(request, env, url) {
     });
   }
 
+  const isAdmin = isUserAdmin(userId, null, null, env);
   return jsonResponse({
     status: "success",
-    user: { id: userId, free_generations_used: 0, stars_balance: 0 },
-    stars_balance: 0,
-    daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
+    user: { id: userId, free_generations_used: 0, stars_balance: isAdmin ? 999 : 0 },
+    is_admin: isAdmin,
+    stars_balance: isAdmin ? 999 : 0,
+    daily_limit: isAdmin ? 999 : DAILY_FREE_GENERATIONS_LIMIT,
     free_used_today: 0,
-    free_remaining: DAILY_FREE_GENERATIONS_LIMIT,
+    free_remaining: isAdmin ? 999 : DAILY_FREE_GENERATIONS_LIMIT,
     hours_left: 0,
     can_generate: true,
-    subscription: null,
+    subscription: isAdmin ? { plan_tier: "admin_unlimited", status: "active" } : null,
     history: []
   });
 }

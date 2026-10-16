@@ -855,7 +855,9 @@
                             }
                             const hint = document.getElementById('promptCounterHint');
                             if (hint) {
-                                if (data.subscription) {
+                                if (data.is_admin) {
+                                    hint.innerText = '👑 Admin Pro (Unlimited)';
+                                } else if (data.subscription) {
                                     hint.innerText = 'Unlimited Pro';
                                 } else if (data.free_remaining > 0) {
                                     hint.innerText = `${data.free_remaining}/${data.daily_limit || 5} Free Daily`;
@@ -865,7 +867,9 @@
                             }
                             const planEl = document.getElementById('userModalPlan');
                             if (planEl) {
-                                if (data.subscription) {
+                                if (data.is_admin) {
+                                    planEl.innerText = '👑 Admin Access (Unlimited)';
+                                } else if (data.subscription) {
                                     planEl.innerText = `Pro (${data.subscription.plan_tier.toUpperCase()})`;
                                 } else {
                                     planEl.innerText = `Free Tier (${data.free_remaining !== undefined ? data.free_remaining : 5}/${data.daily_limit || 5} Free Daily)`;
@@ -1303,7 +1307,11 @@
             if (data.free_remaining !== undefined) {
                 const hint = document.getElementById('promptCounterHint');
                 if (hint) {
-                    hint.innerText = data.free_remaining > 0 ? `${data.free_remaining}/${data.daily_limit || 5} Free Daily` : `0/${data.daily_limit || 5} Free (⭐️ 10 Stars)`;
+                    if (data.free_remaining >= 999) {
+                        hint.innerText = '👑 Admin Pro (Unlimited)';
+                    } else {
+                        hint.innerText = data.free_remaining > 0 ? `${data.free_remaining}/${data.daily_limit || 5} Free Daily` : `0/${data.daily_limit || 5} Free (⭐️ 10 Stars)`;
+                    }
                 }
             }
 
