@@ -64,11 +64,16 @@ export async function getTaskStatus(env, taskId, origin) {
   }
 
   if (task.status === "SUCCESS") {
+    const shareUrl = `${origin}/s/${task.share_token || task.id}`;
+    const twitterText = encodeURIComponent("Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:");
+    const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${twitterText}&url=${encodeURIComponent(shareUrl)}`;
+
     return {
       status: "success",
       task_id: task.id,
       share_token: task.share_token,
-      share_url: `${origin}/s/${task.share_token || task.id}`,
+      share_url: shareUrl,
+      twitter_intent_url: twitterIntentUrl,
       output_image_url: task.output_image_url,
       duration_seconds: task.duration_seconds
     };
@@ -109,11 +114,16 @@ export async function getTaskStatus(env, taskId, origin) {
           status: 'SUCCESS'
         });
 
+        const shareUrl = `${origin}/s/${task.share_token || task.id}`;
+        const twitterText = encodeURIComponent("Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:");
+        const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${twitterText}&url=${encodeURIComponent(shareUrl)}`;
+
         return {
           status: "success",
           task_id: task.id,
           share_token: task.share_token,
-          share_url: `${origin}/s/${task.share_token || task.id}`,
+          share_url: shareUrl,
+          twitter_intent_url: twitterIntentUrl,
           output_image_url: resultDataUri,
           duration_seconds: modalRes.duration_seconds || 45
         };

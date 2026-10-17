@@ -740,8 +740,20 @@
                 ? '✨ Qwen 2.1 Text-to-Image'
                 : (selectedPresetId || 'Custom Style').replace(/_/g, ' ').toUpperCase();
 
-            if (data.twitter_intent_url) {
-                document.getElementById('shareTwitterBtn').href = data.twitter_intent_url;
+            const computedShareUrl = data.share_url || (currentShareUrl || window.location.href);
+            currentShareUrl = computedShareUrl;
+
+            const twitterText = encodeURIComponent("Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:");
+            const twitterUrl = data.twitter_intent_url || `https://twitter.com/intent/tweet?text=${twitterText}&url=${encodeURIComponent(computedShareUrl)}`;
+
+            const shareTwitterBtn = document.getElementById('shareTwitterBtn');
+            if (shareTwitterBtn) {
+                shareTwitterBtn.href = twitterUrl;
+                shareTwitterBtn.setAttribute('target', '_blank');
+                shareTwitterBtn.onclick = (e) => {
+                    e.preventDefault();
+                    window.open(twitterUrl, '_blank', 'width=600,height=500,menubar=no,toolbar=no');
+                };
             }
 
             if (data.free_remaining !== undefined) {
@@ -1137,9 +1149,13 @@
                             <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                                 <span class="text-slate-400 font-mono text-[11px]">AuraStudio AI</span>
                                 <div class="flex items-center gap-2">
+                                    <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:')}&url=${encodeURIComponent(fullShareUrl)}" target="_blank" onclick="window.open(this.href, '_blank', 'width=600,height=500,menubar=no,toolbar=no'); return false;" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium transition flex items-center gap-1.5" title="Share on X">
+                                        <i data-lucide="twitter" class="w-3.5 h-3.5 text-cyan-600"></i>
+                                        <span>Share on X</span>
+                                    </a>
                                     <a href="${fullShareUrl}" target="_blank" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium transition flex items-center gap-1.5">
                                         <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
-                                        <span>Share</span>
+                                        <span>Link</span>
                                     </a>
                                     <a href="${imgSrc}" download="AuraStudio_${activeTask.taskId}.png" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition flex items-center gap-1.5 shadow-sm">
                                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
