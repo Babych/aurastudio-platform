@@ -124,6 +124,9 @@ export async function handleAuthGoogle(request, env, url) {
       userRecord = { id: userId, email, name, avatar_url: avatarUrl, free_generations_used: 0, is_new: true };
     }
 
+    const isAdmin = isUserAdmin(userId, userRecord.username, email, env);
+    userRecord.is_admin = isAdmin;
+
     return jsonResponse({
       status: "success",
       user: userRecord
@@ -166,6 +169,9 @@ export async function handleAuthTelegram(request, env, url) {
     } else {
       userRecord = { id: userId, username: userHandle, name: userName, free_generations_used: 0, is_new: true };
     }
+
+    const isAdmin = isUserAdmin(userId, userHandle, null, env);
+    userRecord.is_admin = isAdmin;
 
     return jsonResponse({
       status: "success",

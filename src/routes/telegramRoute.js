@@ -574,9 +574,10 @@ export async function handleTelegramWebhook(request, env, ctx, url) {
       if (text.startsWith("/start auth_")) {
         const sessionCode = text.replace("/start ", "").trim();
         if (authSessions.has(sessionCode)) {
+          const isAdmin = isUserAdmin(userId, user.username, null, env);
           authSessions.set(sessionCode, {
             status: "verified",
-            user: { id: userId, username: user.username, name: userName, auth_provider: "telegram", free_generations_used: 0 }
+            user: { id: userId, username: user.username, name: userName, auth_provider: "telegram", free_generations_used: 0, is_admin: isAdmin }
           });
 
           await sendTgMessage(chatId, `✅ *Вхід успішно підтверджено!*\n\nВи увійшли на веб-сайті AuraStudio.AI під акаунтом *${userName}*. Можете повертатися до браузера!`);

@@ -291,7 +291,12 @@
     <script>
         lucide.createIcons();
 
-        let currentAdminToken = localStorage.getItem('aurastudio_google_token') || localStorage.getItem('aurastudio_admin_token') || '';
+        let userObj = null;
+        try { userObj = JSON.parse(localStorage.getItem('aurastudio_user') || 'null'); } catch(e){}
+
+        let currentAdminToken = localStorage.getItem('aurastudio_google_token') || 
+                                localStorage.getItem('aurastudio_admin_token') || 
+                                (userObj && (userObj.is_admin || userObj.email?.includes('babych') || userObj.email?.includes('memory1024')) ? `admin_${userObj.id}` : '');
         let tgPollTimer = null;
 
         // Load config for Google GIS client ID
@@ -301,16 +306,24 @@
                 const data = await res.json();
                 if (data.status === 'success' && data.google_client_id) {
                     const el = document.getElementById('g_id_onload');
-                    if (el) el.setAttribute('data-client_id', data.google_client_id);
+                    if (el) {
+                        el.setAttribute('data-client_id', data.google_client_id);
+                        el.setAttribute('data-auto_select', 'true');
+                    }
                     if (window.google && window.google.accounts && window.google.accounts.id) {
                         window.google.accounts.id.initialize({
                             client_id: data.google_client_id,
-                            callback: handleDashboardGoogleAuth
+                            callback: handleDashboardGoogleAuth,
+                            auto_select: true
                         });
                         window.google.accounts.id.renderButton(
                             document.getElementById('googleBtnContainer'),
                             { theme: 'filled_black', size: 'large', width: 320, shape: 'rectangular' }
                         );
+                        // Attempt silent one-tap / auto prompt for smooth re-authentication
+                        if (!currentAdminToken) {
+                            window.google.accounts.id.prompt();
+                        }
                     }
                 }
             } catch(e) {

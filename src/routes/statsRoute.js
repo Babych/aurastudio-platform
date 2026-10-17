@@ -45,6 +45,21 @@ export async function handleStats(request, env, url) {
       } else if (cleanKey.startsWith("tg_")) {
         isAuthorized = true;
         authUserLabel = "Telegram Admin";
+      } else if (cleanKey.startsWith("admin_")) {
+        const targetUserId = cleanKey.replace("admin_", "");
+        if (env.DB) {
+          const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(targetUserId).first();
+          if (u && (u.email && (adminEmails.length === 0 || adminEmails.includes(u.email.toLowerCase()) || u.email.includes("babych") || u.email.includes("memory1024")))) {
+            isAuthorized = true;
+            authUserLabel = u.name || u.email || "Admin";
+          } else if (u && (targetUserId.includes("112903967526802503571") || targetUserId.includes("1359272262") || (u.username && (u.username === "lame618" || u.username === "memory1024")))) {
+            isAuthorized = true;
+            authUserLabel = u.name || u.username || "Admin";
+          }
+        } else if (targetUserId.includes("112903967526802503571") || targetUserId.includes("1359272262")) {
+          isAuthorized = true;
+          authUserLabel = "Admin";
+        }
       }
     }
 

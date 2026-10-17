@@ -663,8 +663,18 @@
             </div>
 
             <div class="space-y-1">
-                <h3 class="text-xl font-bold tracking-tight text-slate-900">Sign In to AuraStudio</h3>
-                <p class="text-xs text-slate-500">Unlock your 5 free daily transformations.</p>
+                <h3 id="authModalTitle" class="text-xl font-bold tracking-tight text-slate-900">Sign In to AuraStudio</h3>
+                <p id="authModalSubtitle" class="text-xs text-slate-500">Unlock your 5 free daily transformations.</p>
+            </div>
+
+            <div id="authModalNotice" class="hidden p-3 rounded-2xl bg-indigo-50 border border-indigo-200 text-left space-y-1">
+                <div class="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
+                    <span id="authNoticeTitle">Free Trial Used</span>
+                </div>
+                <p id="authNoticeDesc" class="text-[11px] text-indigo-700 leading-relaxed">
+                    You've enjoyed your 1 free generation! Sign in with Google or Telegram to instantly claim <b>5 free daily generations</b>.
+                </p>
             </div>
 
             <div class="space-y-3 pt-2">

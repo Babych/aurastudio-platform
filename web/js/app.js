@@ -697,8 +697,11 @@
                 } else if (data.status === 'auth_required') {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
-                    renderFailedStreamCard(activeTask, data.message || 'Authentication required.');
-                    openAuthModal();
+                    const reasonMsg = data.message || (currentLang === 'uk'
+                        ? 'Ви використали 1 безкоштовну спробу. Увійдіть через Google або Telegram для ще 5 щоденних генерацій!'
+                        : '1 free trial used. Please sign in to unlock 5 free daily transformations!');
+                    renderFailedStreamCard(activeTask, reasonMsg);
+                    openAuthModal('trial_used');
                     setGenerateBtnLoading(false);
                 } else {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
@@ -1378,9 +1381,34 @@
             document.getElementById('paywallModal').classList.remove('flex');
         }
 
-        function openAuthModal() {
+        function openAuthModal(reason = null) {
+            const noticeEl = document.getElementById('authModalNotice');
+            const noticeTitle = document.getElementById('authNoticeTitle');
+            const noticeDesc = document.getElementById('authNoticeDesc');
+
+            if (reason === 'guest_limit' || reason === 'trial_used') {
+                if (noticeEl) {
+                    noticeEl.classList.remove('hidden');
+                    if (noticeTitle) noticeTitle.innerText = currentLang === 'uk' ? '1 Безкоштовна спроба використана' : '1 Free Trial Used';
+                    if (noticeDesc) {
+                        noticeDesc.innerHTML = currentLang === 'uk'
+                            ? 'Ви використали 1 пробну генерацію без реєстрації. <b>Увійдіть через Google або Telegram</b>, щоб отримати ще <b>5 безкоштовних щоденних генерацій</b>!'
+                            : "You've used your 1 trial generation without login. <b>Sign in with Google or Telegram</b> to unlock <b>5 free daily generations</b>!";
+                    }
+                }
+            } else if (typeof reason === 'string' && reason.length > 0) {
+                if (noticeEl) {
+                    noticeEl.classList.remove('hidden');
+                    if (noticeTitle) noticeTitle.innerText = currentLang === 'uk' ? 'Увійдіть в акаунт' : 'Sign In Required';
+                    if (noticeDesc) noticeDesc.innerText = reason;
+                }
+            } else {
+                if (noticeEl) noticeEl.classList.add('hidden');
+            }
+
             document.getElementById('authModal').classList.remove('hidden');
             document.getElementById('authModal').classList.add('flex');
+            if (window.lucide) lucide.createIcons();
         }
         function closeAuthModal() {
             document.getElementById('authModal').classList.add('hidden');
@@ -1515,6 +1543,9 @@
 
         // Google & Telegram Auth Handlers
         function handleGoogleCredentialResponse(response) {
+            if (response && response.credential) {
+                localStorage.setItem('aurastudio_google_token', response.credential);
+            }
             fetch('/api/auth/google', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1523,6 +1554,9 @@
                 if (data.status === 'success') {
                     currentUser = data.user;
                     localStorage.setItem('aurastudio_user', JSON.stringify(currentUser));
+                    if (data.user && (data.user.is_admin || (data.user.email && (data.user.email.includes('babych') || data.user.email.includes('memory1024'))))) {
+                        localStorage.setItem('aurastudio_admin_token', `admin_${data.user.id}`);
+                    }
                     closeAuthModal();
                     checkUserAuthUI();
                 }
@@ -1551,6 +1585,7 @@
                                 clearInterval(telegramPollInterval);
                                 currentUser = pollData.user;
                                 localStorage.setItem('aurastudio_user', JSON.stringify(currentUser));
+                                localStorage.setItem('aurastudio_admin_token', `tg_${currentUser.id || currentUser.username}`);
                                 closeAuthModal();
                                 checkUserAuthUI();
                             }
@@ -1562,6 +1597,8 @@
 
         function handleLogout() {
             localStorage.removeItem('aurastudio_user');
+            localStorage.removeItem('aurastudio_google_token');
+            localStorage.removeItem('aurastudio_admin_token');
             currentUser = null;
             closeUserModal();
             checkUserAuthUI();
