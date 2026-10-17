@@ -13,8 +13,16 @@ export const DEFAULT_BLANK_CANVAS_BASE64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUD
 
 // Modal Multi-Account Failover Endpoints (Auto load-balancing across accounts)
 export const MODAL_PHOTO_ENDPOINTS = [
-  "https://dmytrobbch--qwen-image-edit-service-qweneditor-api-edit.modal.run",
-  "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run"
+  "https://memory1024--qwen-image-edit-service-qweneditor-api-edit.modal.run",
+  "https://dmytrobbch--qwen-image-edit-service-qweneditor-api-edit.modal.run"
+];
+
+// Modal Asynchronous Job Endpoints (Decoupled submit & poll bypassing Cloudflare 100s timeout)
+export const MODAL_ASYNC_ENDPOINTS = [
+  {
+    submit: "https://memory1024--qwen-image-edit-service-qweneditor-api-submit.modal.run",
+    status: "https://memory1024--qwen-image-edit-service-qweneditor-api-job-status.modal.run"
+  }
 ];
 
 export const MODAL_VIDEO_ENDPOINTS = [

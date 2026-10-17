@@ -48,7 +48,11 @@ image = (
     .env({"PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"})
 )
 
+# Persistent Task Dict for decoupled async polling without HTTP timeout limits
+task_dict = modal.Dict.from_name("qwen-task-results", create_if_missing=True)
+
 class EditRequest(BaseModel):
+    task_id: str | None = None
     image_base64: str
     prompt: str
     negative_prompt: str = ""
@@ -304,6 +308,88 @@ class QwenEditor:
 
         # Start background ComfyUI daemon
         ensure_comfyui_running()
+
+    @modal.method()
+    def execute_generation_task(self, task_id: str, req_dict: dict):
+        try:
+            task_dict[task_id] = {"status": "processing", "started_at": time.time()}
+            ensure_comfyui_running()
+            raw_b64 = req_dict["image_base64"]
+            if "base64," in raw_b64:
+                raw_b64 = raw_b64.split("base64,")[1]
+            raw_b64 = raw_b64.strip()
+            pad_len = len(raw_b64) % 4
+            if pad_len != 0:
+                raw_b64 += "=" * (4 - pad_len)
+            image_bytes = base64.b64decode(raw_b64)
+
+            t0 = time.time()
+            result_bytes = execute_qwen_workflow(
+                image_bytes=image_bytes,
+                prompt=req_dict["prompt"],
+                negative_prompt=req_dict.get("negative_prompt", ""),
+                steps=req_dict.get("steps", 22),
+                cfg=req_dict.get("cfg", 2.8),
+                seed=req_dict.get("seed", 888424)
+            )
+            duration = round(time.time() - t0, 1)
+
+            # Direct Telegram Delivery straight from GPU node
+            if req_dict.get("telegram_bot_token") and req_dict.get("telegram_chat_id"):
+                try:
+                    boundary = "----WebKitFormBoundary" + str(int(time.time()*1000))
+                    caption_text = req_dict.get("telegram_caption") or "✨ Результат готовий!"
+                    form_bytes = (
+                        f"--{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="chat_id"\r\n\r\n{req_dict["telegram_chat_id"]}\r\n'
+                        f"--{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="caption"\r\n\r\n{caption_text}\r\n'
+                        f"--{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="parse_mode"\r\n\r\nMarkdown\r\n'
+                        f"--{boundary}\r\n"
+                        f'Content-Disposition: form-data; name="photo"; filename="result.png"\r\n'
+                        f"Content-Type: image/png\r\n\r\n"
+                    ).encode("utf-8") + result_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+                    tg_req = urllib.request.Request(
+                        f"https://api.telegram.org/bot{req_dict['telegram_bot_token']}/sendPhoto",
+                        data=form_bytes,
+                        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}
+                    )
+                    with urllib.request.urlopen(tg_req, timeout=30) as tg_resp:
+                        print(f"[+] Direct Telegram delivery successful: {tg_resp.status}")
+                except Exception as tg_err:
+                    print(f"[-] Direct Telegram delivery warning: {tg_err}")
+
+            task_dict[task_id] = {
+                "status": "success",
+                "result_base64": base64.b64encode(result_bytes).decode("utf-8"),
+                "duration_seconds": duration,
+                "finished_at": time.time()
+            }
+        except Exception as e:
+            task_dict[task_id] = {
+                "status": "failed",
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "failed_at": time.time()
+            }
+
+    @modal.fastapi_endpoint(method="POST")
+    def api_submit(self, req: EditRequest):
+        task_id = req.task_id or f"task_{int(time.time()*1000)}"
+        task_dict[task_id] = {"status": "queued", "queued_at": time.time()}
+        self.execute_generation_task.spawn(task_id, req.dict())
+        return {
+            "status": "queued",
+            "task_id": task_id
+        }
+
+    @modal.fastapi_endpoint(method="GET")
+    def api_job_status(self, task_id: str):
+        if task_id in task_dict:
+            return task_dict[task_id]
+        return {"status": "not_found", "message": f"Task {task_id} not found in Modal cluster"}
 
     @modal.fastapi_endpoint(method="POST")
     def api_edit(self, req: EditRequest):

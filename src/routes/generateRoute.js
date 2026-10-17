@@ -4,10 +4,11 @@ import {
   DAILY_FREE_GENERATIONS_LIMIT, 
   DEFAULT_BLANK_CANVAS_BASE64, 
   MODAL_PHOTO_ENDPOINTS, 
+  MODAL_ASYNC_ENDPOINTS,
   anchorPromptForPhoto 
 } from "../config/constants.js";
 import { jsonResponse, logCriticalError } from "../utils/response.js";
-import { callModalWithFallback, uploadToR2 } from "../services/gpuService.js";
+import { callModalWithFallback, submitModalTask, uploadToR2 } from "../services/gpuService.js";
 import { getLiveQueueStatus, getTaskStatus } from "../services/queueService.js";
 import { isUserAdmin, recordGenerationInD1 } from "../services/dbService.js";
 
@@ -181,70 +182,46 @@ export async function handleGenerate(request, env, ctx, url) {
     const twitterText = encodeURIComponent("Check out my AI photo created with @AuraStudioAi! 🚀✨ Try 5 free transformations daily:");
     const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${twitterText}&url=${encodeURIComponent(shareUrl)}`;
 
-    // Execute generation directly within the HTTP request lifecycle (Cloudflare Workers allow up to 100s for HTTP responses, whereas waitUntil background tasks get cancelled after early return)
-    const t0 = Date.now();
+    // Asynchronous Dispatch: Submit task to Modal cluster via spawn() in <1s, completely avoiding Cloudflare 100s timeout!
     try {
-      const modalData = await callModalWithFallback(MODAL_PHOTO_ENDPOINTS, payload);
+      const submitRes = await submitModalTask(MODAL_ASYNC_ENDPOINTS, {
+        task_id: taskId,
+        image_base64: effectiveInputBase64,
+        prompt: finalPrompt,
+        negative_prompt: cleanNeg,
+        steps: 22,
+        cfg: 1.95,
+        seed: 888424
+      });
 
-      if (!modalData || !modalData.result_base64) {
-        throw new Error(modalData ? modalData.message : "Model failed to return edited image");
-      }
-
-      let dur = modalData.duration_seconds || ((Date.now() - t0) / 1000).toFixed(1);
-      let resultDataUri = modalData.result_base64.startsWith("data:")
-        ? modalData.result_base64
-        : `data:image/png;base64,${modalData.result_base64}`;
-
-      if (env.DB) {
-        const inThumb = isTextToImage ? "text_to_image_blank" : (image_base64.startsWith("data:") ? image_base64 : `data:image/jpeg;base64,${image_base64}`);
-        await recordGenerationInD1(env, {
-          id: taskId,
-          userId: effectiveUserId,
-          source: 'web',
-          presetId: preset_id || (isTextToImage ? "text_to_image" : "custom"),
-          prompt: prompt,
-          inputBase64: inThumb,
-          outputBase64: resultDataUri,
-          duration: dur,
-          status: 'SUCCESS'
-        });
-
-        // Also set share token
-        await env.DB.prepare("UPDATE generations SET is_shared = 1, share_token = ? WHERE id = ?").bind(shareToken, taskId).run().catch(() => {});
+      // Save Modal status endpoint in error_message or D1 column so getTaskStatus can poll it
+      if (env.DB && submitRes.statusEndpoint) {
+        await env.DB.prepare(`
+          UPDATE generations 
+          SET error_message = ? 
+          WHERE id = ?
+        `).bind(`modal_endpoint:${submitRes.statusEndpoint}`, taskId).run().catch(() => {});
       }
 
       return jsonResponse({
-        status: "success",
+        status: "queued",
         task_id: taskId,
-        result_base64: resultDataUri,
-        duration_seconds: dur,
+        mode: isTextToImage ? "text_to_image" : "image_to_image",
         share_token: shareToken,
         share_url: shareUrl,
         twitter_intent_url: twitterIntentUrl,
         daily_limit: DAILY_FREE_GENERATIONS_LIMIT,
         free_remaining: isAdmin ? 999 : Math.max(0, DAILY_FREE_GENERATIONS_LIMIT - (dailyUsed + 1))
       });
-    } catch (bgErr) {
-      console.error("Modal generation failed:", bgErr);
+    } catch (submitErr) {
+      console.error("Modal task dispatch error:", submitErr);
       if (env.DB) {
-        await recordGenerationInD1(env, {
-          id: taskId,
-          userId: effectiveUserId,
-          source: 'web',
-          presetId: preset_id || (isTextToImage ? "text_to_image" : "custom"),
-          prompt: prompt,
-          inputBase64: null,
-          outputBase64: null,
-          duration: 0,
-          status: 'FAILED',
-          errorMessage: bgErr.message || "GPU cluster error"
-        });
+        await env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?").bind(submitErr.message, taskId).run().catch(() => {});
       }
-      logCriticalError(env, ctx, "modal_photo_gpu", bgErr.message, effectiveUserId);
       return jsonResponse({
         status: "failed",
         task_id: taskId,
-        message: bgErr.message || "Generation failed on GPU cluster"
+        message: submitErr.message || "Failed to dispatch job to GPU cluster"
       }, 500);
     }
   } catch (err) {

@@ -1,4 +1,6 @@
-// Real-time Queue Tracking & Task Status Service (Midjourney / Leonardo style)
+import { MODAL_ASYNC_ENDPOINTS } from "../config/constants.js";
+import { pollModalTaskStatus } from "./gpuService.js";
+import { recordGenerationInD1 } from "./dbService.js";
 
 export async function getLiveQueueStatus(env) {
   let activeJobs = 0;
@@ -79,15 +81,63 @@ export async function getTaskStatus(env, taskId, origin) {
     };
   }
 
-  // If task has been PROCESSING for > 600s (10 min), auto-expire it
-  if (task.status === "PROCESSING" && task.created_at) {
-    const createdDate = new Date(task.created_at.includes("Z") ? task.created_at : task.created_at + "Z").getTime();
-    if (Date.now() - createdDate > 600000) {
-      await env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = 'Generation timed out' WHERE id = ?").bind(task.id).run().catch(() => {});
-      return {
-        status: "failed",
-        error: "Generation timed out"
-      };
+  // If task is still PROCESSING, poll Modal cluster for real-time completion
+  if (task.status === "PROCESSING") {
+    let modalEndpoint = null;
+    if (task.error_message && task.error_message.startsWith("modal_endpoint:")) {
+      modalEndpoint = task.error_message.replace("modal_endpoint:", "").trim();
+    } else {
+      modalEndpoint = MODAL_ASYNC_ENDPOINTS[0].status;
+    }
+
+    try {
+      const modalRes = await pollModalTaskStatus(modalEndpoint, task.id);
+      if (modalRes && modalRes.status === "success" && modalRes.result_base64) {
+        let resultDataUri = modalRes.result_base64.startsWith("data:")
+          ? modalRes.result_base64
+          : `data:image/png;base64,${modalRes.result_base64}`;
+
+        await recordGenerationInD1(env, {
+          id: task.id,
+          userId: task.user_id,
+          source: task.source || 'web',
+          presetId: task.preset_id,
+          prompt: task.prompt,
+          inputBase64: task.input_image_url,
+          outputBase64: resultDataUri,
+          duration: modalRes.duration_seconds || 45,
+          status: 'SUCCESS'
+        });
+
+        return {
+          status: "success",
+          task_id: task.id,
+          share_token: task.share_token,
+          share_url: `${origin}/s/${task.share_token || task.id}`,
+          output_image_url: resultDataUri,
+          duration_seconds: modalRes.duration_seconds || 45
+        };
+      } else if (modalRes && modalRes.status === "failed") {
+        await env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?").bind(modalRes.error || "Generation failed on GPU cluster", task.id).run().catch(() => {});
+        return {
+          status: "failed",
+          error: modalRes.error || "Generation failed on GPU cluster"
+        };
+      }
+    } catch(mErr) {
+      console.error("Modal status poll error:", mErr);
+    }
+
+    // Auto-expire if processing for > 600s
+    if (task.created_at) {
+      const createdDate = new Date(task.created_at.includes("Z") ? task.created_at : task.created_at + "Z").getTime();
+      if (Date.now() - createdDate > 600000) {
+        await env.DB.prepare("UPDATE generations SET status = 'FAILED', error_message = 'Generation timed out' WHERE id = ?").bind(task.id).run().catch(() => {});
+        return {
+          status: "failed",
+          error: "Generation timed out"
+        };
+      }
     }
   }
 
