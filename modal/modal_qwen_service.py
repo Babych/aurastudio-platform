@@ -243,6 +243,7 @@ def execute_qwen_workflow(image_bytes: bytes, prompt: str, negative_prompt: str 
     volumes={"/models": models_volume},
     timeout=900,
     scaledown_window=300, # Keep warm for 5 minutes
+    max_containers=1, # Strict queue mode: Exactly 1 GPU container max to prevent burning credits!
 )
 class QwenEditor:
     @modal.enter()
