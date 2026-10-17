@@ -673,10 +673,21 @@
                 } else if (data.status === 'success') {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
-                    clearPendingStreamCard();
-                    showResult(data, inputPhotoBase64);
-                    refreshStreamHistory();
+                    stopIntelligentLoadingHUD();
+                    const topLoadingBox = document.getElementById('generationLoadingBox');
+                    if (topLoadingBox) topLoadingBox.classList.add('hidden');
                     setGenerateBtnLoading(false);
+
+                    const elapsedSec = Math.floor((Date.now() - activeTask.startedAt) / 1000);
+                    const durSec = data.duration_seconds || elapsedSec;
+                    const outUrl = data.result_base64 || data.output_image_url;
+
+                    // 1. Transform pending stream card into finished master render
+                    renderCompletedStreamCard(activeTask, outUrl, durSec, data.share_url);
+                    refreshStreamHistory();
+
+                    // 2. Also populate main result viewer if available
+                    showResult(data, inputPhotoBase64);
                 } else if (data.status === 'daily_limit_reached') {
                     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     localStorage.removeItem('aura_active_task');
@@ -1047,6 +1058,104 @@
             pendingBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
+        function renderCompletedStreamCard(activeTask, resultUrl, durationSec, shareUrl) {
+            const pendingBox = document.getElementById('streamPendingBox');
+            if (!pendingBox) return;
+
+            const emptyState = document.getElementById('streamEmptyState');
+            if (emptyState) emptyState.classList.add('hidden');
+
+            const presetName = (activeTask.presetId || 'Transformation').replace(/_/g, ' ').toUpperCase();
+            const userAvatarLetter = currentUser ? ((currentUser.name || currentUser.username || 'U')[0]).toUpperCase() : 'U';
+            const inPhoto = activeTask.inputImage;
+            const imgSrc = formatImgSrc(resultUrl, activeTask.taskId);
+            const inSrc = inPhoto ? formatImgSrc(inPhoto) : null;
+            const fullShareUrl = shareUrl || `/s/${activeTask.taskId.replace('task_', 's_')}`;
+            const durText = durationSec ? `${parseFloat(durationSec).toFixed(1)}s` : '';
+
+            pendingBox.innerHTML = `
+                <div class="space-y-4 pt-2">
+                    <!-- Turn 1: User Request Message Bubble -->
+                    <div class="flex items-start justify-end gap-3 max-w-xl ml-auto">
+                        <div class="bg-indigo-600 text-white rounded-3xl rounded-tr-sm px-4 py-3 shadow-md space-y-2 text-right">
+                            ${inSrc ? `
+                                <div class="rounded-xl overflow-hidden border border-indigo-400/40 w-24 h-24 ml-auto mb-1 bg-indigo-950/60 flex items-center justify-center">
+                                    <img src="${inSrc}" class="w-full h-full object-contain">
+                                </div>
+                            ` : ''}
+                            <p class="text-xs sm:text-sm font-medium leading-relaxed">${escapeHtml(activeTask.prompt)}</p>
+                            <span class="text-[10px] text-indigo-200 font-mono block">Just now</span>
+                        </div>
+                        <div class="w-8 h-8 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 border border-indigo-200 shadow-sm mt-0.5">
+                            ${userAvatarLetter}
+                        </div>
+                    </div>
+
+                    <!-- Turn 2: AI Assistant Response -->
+                    <div class="flex items-start gap-3 max-w-2xl mr-auto">
+                        <div class="w-8 h-8 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-md shadow-indigo-500/20 mt-0.5">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        </div>
+                        <div class="bg-white rounded-3xl rounded-tl-sm p-5 border border-slate-200/90 shadow-sm space-y-4 hover:border-indigo-200 transition flex-1">
+                            <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-slate-900">${presetName}</span>
+                                    <span class="text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-bold">Qwen 2.5 DiT 20B</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    ${durText ? `<span class="text-[10px] text-slate-400 font-mono">${durText}</span>` : ''}
+                                    <button onclick="reusePrompt('${escapeJs(activeTask.prompt)}')" class="px-2 py-1 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 text-xs font-medium transition flex items-center gap-1 border border-slate-200" title="Remix Prompt">
+                                        <i data-lucide="corner-up-left" class="w-3 h-3"></i>
+                                        <span class="hidden sm:inline">Remix</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 ${inSrc ? 'sm:grid-cols-2' : 'max-w-md mx-auto'} gap-3 items-center">
+                                ${inSrc ? `
+                                <div class="space-y-1">
+                                    <span class="text-[11px] font-semibold text-slate-400 px-1">Original Input</span>
+                                    <div class="rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 min-h-[220px] max-h-[460px] flex items-center justify-center">
+                                        <img src="${inSrc}" class="w-full h-auto max-h-[460px] object-contain">
+                                    </div>
+                                </div>
+                                ` : ''}
+                                <div class="space-y-1">
+                                    <span class="text-[11px] font-semibold text-indigo-600 px-1 flex items-center justify-between">
+                                        <span>✨ Master Render</span>
+                                        <span class="text-[9px] bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded font-bold">8K HD</span>
+                                    </span>
+                                    <div class="rounded-2xl overflow-hidden bg-slate-900 border border-indigo-200 min-h-[220px] max-h-[460px] flex items-center justify-center group relative cursor-pointer" onclick="openFullImageModalWithSrc('${imgSrc}')">
+                                        <img src="${imgSrc}" class="w-full h-auto max-h-[460px] object-contain group-hover:scale-102 transition duration-300">
+                                        <div class="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-2xl">
+                                            <span class="text-xs text-white font-medium bg-slate-900/75 px-3 py-1.5 rounded-xl backdrop-blur">Click to Expand</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                                <span class="text-slate-400 font-mono text-[11px]">AuraStudio AI</span>
+                                <div class="flex items-center gap-2">
+                                    <a href="${fullShareUrl}" target="_blank" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium transition flex items-center gap-1.5">
+                                        <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                                        <span>Share</span>
+                                    </a>
+                                    <a href="${imgSrc}" download="AuraStudio_${activeTask.taskId}.png" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition flex items-center gap-1.5 shadow-sm">
+                                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                                        <span>Download</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            pendingBox.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+            pendingBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
         function clearPendingStreamCard() {
             const pendingBox = document.getElementById('streamPendingBox');
             if (pendingBox) {
@@ -1153,14 +1262,13 @@
                             clearInterval(pollingInterval);
                             pollingInterval = null;
                             localStorage.removeItem('aura_active_task');
-                            clearPendingStreamCard();
                             stopIntelligentLoadingHUD();
                             const loadingBox = document.getElementById('generationLoadingBox');
                             if (loadingBox) loadingBox.classList.add('hidden');
                             setGenerateBtnLoading(false);
 
-                            // Show notification & refresh stream
-                            showToastNotification(currentLang === 'uk' ? '✨ Генерацію відновлено! Завершено у фоновому режимі.' : '✨ Generation restored! Completed in background.');
+                            // Transform stream card directly into the completed master portrait
+                            renderCompletedStreamCard(activeTask, data.output_image_url, data.duration_seconds || elapsedSec, data.share_url);
                             refreshStreamHistory();
 
                             // Also display in main canvas if resultCanvasBox is available

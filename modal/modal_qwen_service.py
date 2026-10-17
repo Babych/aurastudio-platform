@@ -9,7 +9,8 @@ import urllib.error
 import traceback
 import modal
 from pydantic import BaseModel
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 app = modal.App("qwen-image-edit-service")
 
