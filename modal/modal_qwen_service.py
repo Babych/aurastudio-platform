@@ -53,6 +53,7 @@ task_dict = modal.Dict.from_name("qwen-task-results", create_if_missing=True)
 
 class EditRequest(BaseModel):
     task_id: str | None = None
+    auth_key: str | None = None
     image_base64: str
     prompt: str
     negative_prompt: str = ""
@@ -378,6 +379,10 @@ class QwenEditor:
 
     @modal.fastapi_endpoint(method="POST")
     def api_submit(self, req: EditRequest):
+        expected_key = os.environ.get("MODAL_AUTH_KEY")
+        if expected_key and req.auth_key != expected_key:
+            return {"status": "unauthorized", "message": "Invalid or missing auth key"}
+
         task_id = req.task_id or f"task_{int(time.time()*1000)}"
         task_dict[task_id] = {"status": "queued", "queued_at": time.time()}
         self.execute_generation_task.spawn(task_id, req.dict())
@@ -387,13 +392,21 @@ class QwenEditor:
         }
 
     @modal.fastapi_endpoint(method="GET")
-    def api_job_status(self, task_id: str):
+    def api_job_status(self, task_id: str, auth_key: str | None = None):
+        expected_key = os.environ.get("MODAL_AUTH_KEY")
+        if expected_key and auth_key != expected_key:
+            return {"status": "unauthorized", "message": "Invalid or missing auth key"}
+
         if task_id in task_dict:
             return task_dict[task_id]
         return {"status": "not_found", "message": f"Task {task_id} not found in Modal cluster"}
 
     @modal.fastapi_endpoint(method="POST")
     def api_edit(self, req: EditRequest):
+        expected_key = os.environ.get("MODAL_AUTH_KEY")
+        if expected_key and req.auth_key != expected_key:
+            return {"status": "unauthorized", "message": "Invalid or missing auth key"}
+
         try:
             ensure_comfyui_running()
             raw_b64 = req.image_base64

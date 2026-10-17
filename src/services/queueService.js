@@ -91,7 +91,7 @@ export async function getTaskStatus(env, taskId, origin) {
     }
 
     try {
-      const modalRes = await pollModalTaskStatus(modalEndpoint, task.id);
+      const modalRes = await pollModalTaskStatus(modalEndpoint, task.id, env.MODAL_AUTH_KEY);
       if (modalRes && modalRes.status === "success" && modalRes.result_base64) {
         let resultDataUri = modalRes.result_base64.startsWith("data:")
           ? modalRes.result_base64

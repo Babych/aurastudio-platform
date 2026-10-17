@@ -27,14 +27,15 @@ export async function callModalWithFallback(endpoints, payload) {
   throw new Error(`GPU cluster temporarily unavailable: ${errors.join(" | ") || "all endpoints unreachable"}`);
 }
 
-export async function submitModalTask(asyncEndpoints, payload) {
+export async function submitModalTask(asyncEndpoints, payload, authKey = null) {
   let errors = [];
+  const reqBody = authKey ? { ...payload, auth_key: authKey } : payload;
   for (const ep of asyncEndpoints) {
     try {
       const res = await fetch(ep.submit, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(reqBody),
         signal: AbortSignal.timeout(30000) // 30s: allows first-request container scaling to accept spawn()
       });
       if (res.ok) {
@@ -53,9 +54,10 @@ export async function submitModalTask(asyncEndpoints, payload) {
   throw new Error(`Failed to dispatch task to GPU cluster: ${errors.join(" | ")}`);
 }
 
-export async function pollModalTaskStatus(statusEndpoint, taskId) {
+export async function pollModalTaskStatus(statusEndpoint, taskId, authKey = null) {
   try {
-    const url = `${statusEndpoint}?task_id=${encodeURIComponent(taskId)}`;
+    const authQuery = authKey ? `&auth_key=${encodeURIComponent(authKey)}` : "";
+    const url = `${statusEndpoint}?task_id=${encodeURIComponent(taskId)}${authQuery}`;
     const res = await fetch(url, {
       method: "GET",
       signal: AbortSignal.timeout(10000)

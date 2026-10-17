@@ -37,9 +37,9 @@ export const GLOBAL_PRESETS = {
   blonde: "change hair color to natural sun-kissed soft blonde with delicate hair strands and realistic highlights",
   bali: "change background to a tropical luxury Bali resort infinity pool with golden hour sunset lighting",
   cyberpunk: "change style to cyberpunk neon noir, futuristic leather jacket with subtle glowing reflections",
-  muppet: "convert person to funny eccentric real-life Muppet cartoon guy with blonde spike hair, retro yellow overalls, striped vintage shirt, funny expressive meme face, photorealistic flash photo",
-  goofy3d: "change style to funny 3D animated caricature character with exaggerated goofy facial expression and bright vibrant colors",
-  retro90s: "transform into unhinged 90s meme character, wild spiky mohawk hair, retro vintage clothing, funny candid expression"
+  muppet: "stylize clothes and atmosphere into funny Muppet aesthetic with retro yellow overalls and striped vintage shirt, funny whimsical felt textures, cinematic lighting",
+  goofy3d: "stylize clothing and atmosphere into bright 3D animated character aesthetic, colorful stylized studio background",
+  retro90s: "change style and attire to unhinged 90s vintage clothing, nostalgic 90s disposable camera aesthetic, flash photography"
 };
 
 // Protected Standards (Rule 6: Mandatory Golden Identity Retention Formula)

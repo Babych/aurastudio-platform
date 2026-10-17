@@ -8,7 +8,7 @@ import { recordGenerationInD1 } from "../services/dbService.js";
 export async function handleStats(request, env, url) {
   try {
     const cfUserEmail = request.headers.get("Cf-Access-Authenticated-User-Email");
-    const adminSecret = env.ADMIN_SECRET || "aurastudio-admin-2026";
+    const adminSecret = env.ADMIN_SECRET || env.ADMIN_SECRET_KEY;
     const authHeader = request.headers.get("X-Admin-Key") || request.headers.get("Authorization") || "";
     const cleanKey = authHeader.replace(/^Bearer\s+/i, "").trim();
     const urlKey = url.searchParams.get("admin_key") || "";
@@ -25,7 +25,7 @@ export async function handleStats(request, env, url) {
     }
 
     if (!isAuthorized && (cleanKey || urlKey)) {
-      if (cleanKey === adminSecret || urlKey === adminSecret || cleanKey === "aurastudio-admin-2026" || urlKey === "aurastudio-admin-2026") {
+      if (adminSecret && (cleanKey === adminSecret || urlKey === adminSecret)) {
         isAuthorized = true;
         authUserLabel = "Admin Key";
       } else if (cleanKey.startsWith("ey") && cleanKey.split(".").length === 3) {
@@ -129,8 +129,9 @@ export async function handleSmokeTest(request, env, url) {
       }
     }
 
+    const configuredKey = env.ADMIN_SECRET || env.ADMIN_SECRET_KEY;
     const adminKey = url.searchParams.get("admin_key") || request.headers.get("x-admin-key");
-    if (adminKey !== "aurastudio-admin-2026" && adminKey !== "smoke_test_run") {
+    if (!configuredKey || adminKey !== configuredKey) {
       return jsonResponse({ status: "unauthorized", message: "Invalid admin key" }, 401);
     }
 

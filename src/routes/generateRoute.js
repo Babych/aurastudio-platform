@@ -192,7 +192,7 @@ export async function handleGenerate(request, env, ctx, url) {
         steps: 22,
         cfg: 1.95,
         seed: 888424
-      });
+      }, env.MODAL_AUTH_KEY);
 
       // Save Modal status endpoint in error_message or D1 column so getTaskStatus can poll it
       if (env.DB && submitRes.statusEndpoint) {

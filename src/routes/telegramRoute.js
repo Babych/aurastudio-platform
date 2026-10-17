@@ -172,8 +172,8 @@ export async function sendTgChatActionHelper(botToken, chatId, action = "upload_
 
 export async function handleTelegramDebug(request, env, url) {
   const adminKey = url.searchParams.get("admin_key") || request.headers.get("X-Admin-Key");
-  const configuredKey = env.ADMIN_SECRET_KEY || "aurastudio-admin-2026";
-  if (!adminKey || adminKey !== configuredKey) {
+  const configuredKey = env.ADMIN_SECRET_KEY || env.ADMIN_SECRET;
+  if (!configuredKey || !adminKey || adminKey !== configuredKey) {
     return jsonResponse({ status: "error", message: "Unauthorized. Valid admin_key required." }, 401);
   }
 
